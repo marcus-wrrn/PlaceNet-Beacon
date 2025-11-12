@@ -1,0 +1,39 @@
+dependencies:
+  XPowersLib:
+    component_hash: 46eae3dc0561ee0c3f26c635f12bea859d22239277caab80a7e474e96b8963ec
+    dependencies: []
+    source:
+      git: https://github.com/lewisxhe/XPowersLib
+      path: .
+      type: git
+    version: 94e9f402053df73615c582d7cb72efb3ef8eab90
+  idf:
+    source:
+      type: idf
+    version: 5.5.0
+  jgromes/radiolib:
+    component_hash: ef771662860161bd141c57ffba342b3785c1384804ce3b0545515186332343ac
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 7.4.0
+  u8g2:
+    component_hash: 9fc54c2e4db461b1525f8f5af4a5b54059a4579cfca5050e2b37477f0e34ea31
+    dependencies: []
+    source:
+      git: https://github.com/olikraus/u8g2
+      path: .
+      type: git
+    version: 924f3a9344210c3571fc4cac2b15eab055131ccd
+direct_dependencies:
+- XPowersLib
+- idf
+- jgromes/radiolib
+- u8g2
+manifest_hash: faa1669c7a44c27d764b2887120ba707803b94360ec0db516aa19ee33555e680
+target: esp32
+version: 2.0.0
