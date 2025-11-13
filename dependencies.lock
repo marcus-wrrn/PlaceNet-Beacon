@@ -35,5 +35,5 @@ direct_dependencies:
 - jgromes/radiolib
 - u8g2
 manifest_hash: faa1669c7a44c27d764b2887120ba707803b94360ec0db516aa19ee33555e680
-target: esp32
+target: esp32s3
 version: 2.0.0

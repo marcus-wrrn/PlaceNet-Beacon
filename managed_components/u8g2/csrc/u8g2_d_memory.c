@@ -98,7 +98,7 @@ uint8_t *u8g2_m_255_2_f(uint8_t *page_cnt)
   return 0;
   #else
   static uint8_t buf[4080];
-  *page_cnt = 2;
+  *page_cnt = 8;
   return buf;
   #endif
 }
