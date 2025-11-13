@@ -40,6 +40,8 @@ typedef struct {
       gpio_num_t clk;
       /* GPIO num for SPI mosi. */
       gpio_num_t mosi;
+      /* GPIO num for SPI miso -> needed for SPI initialization */
+      gpio_num_t miso;
       /* GPIO num for SPI slave/chip select. */
       gpio_num_t cs;
     } spi;

@@ -10,6 +10,8 @@ static const char* TAG = "u8g2_hal";
 static const unsigned int I2C_TIMEOUT_MS = 1000;
 
 static spi_device_handle_t handle_spi;   // SPI handle.
+
+// TODO isolate i2c bus from devices
 static i2c_master_bus_handle_t i2c_bus_handle;
 static i2c_master_dev_handle_t i2c_dev_handle;
 
