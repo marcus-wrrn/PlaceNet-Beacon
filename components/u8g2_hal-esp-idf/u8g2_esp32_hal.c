@@ -10,10 +10,7 @@
 static const char* TAG = "u8g2_hal";
 static const unsigned int I2C_TIMEOUT_MS = 1000;
 
-static spi_device_handle_t handle_spi;   // SPI handle.
-
-// TODO isolate i2c bus from devices
-static i2c_master_bus_handle_t i2c_bus_handle;
+static spi_device_handle_t spi_dev_handle;   // SPI handle.
 static i2c_master_dev_handle_t i2c_dev_handle;
 
 #define I2C_BUFFER_SIZE 256
@@ -91,7 +88,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
       dev_config.pre_cb = NULL;
       dev_config.post_cb = NULL;
       // ESP_LOGI(TAG, "... Adding device bus.");
-      ESP_ERROR_CHECK(spi_bus_add_device(HOST, &dev_config, &handle_spi));
+      ESP_ERROR_CHECK(spi_bus_add_device(HOST, &dev_config, &spi_dev_handle));
 
       break;
     }
@@ -107,7 +104,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
       trans_desc.rx_buffer = NULL;
       // trans_desc.override_freq_hz = 0; // this param does not exist prior to ESP-IDF 5.5.0
       // ESP_LOGI(TAG, "... Transmitting %d bytes.", arg_int);
-      ESP_ERROR_CHECK(spi_device_transmit(handle_spi, &trans_desc));
+      ESP_ERROR_CHECK(spi_device_transmit(spi_dev_handle, &trans_desc));
       break;
     }
   }
@@ -142,7 +139,7 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t* u8x8,
         .scl_speed_hz = I2C_MASTER_FREQ_HZ,
       };
       
-      esp_err_t ret = prot_driver_i2c_add_device(&dev_cfg, &dev_cfg);
+      esp_err_t ret = prot_driver_i2c_add_device(&i2c_dev_handle, &dev_cfg);
       if (ret != ESP_OK) {
         ESP_LOGE(TAG, "I2C device add failed: %s", esp_err_to_name(ret));
         ESP_ERROR_CHECK(ret);

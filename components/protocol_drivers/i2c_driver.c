@@ -15,7 +15,7 @@ esp_err_t prot_driver_i2c_init(gpio_num_t sda_pin, gpio_num_t scl_pin, i2c_port_
 
     esp_err_t err = i2c_new_master_bus(&i2c_bus_config, &bus_handle);
     if (err != ESP_OK) {
-        // ESP_LOGE(TAG, "Unable to initialize I2C bus");
+        ESP_LOGE(TAG, "Unable to initialize I2C bus");
         return err;
     }
     return err;
@@ -23,12 +23,12 @@ esp_err_t prot_driver_i2c_init(gpio_num_t sda_pin, gpio_num_t scl_pin, i2c_port_
 
 esp_err_t prot_driver_i2c_add_device(i2c_master_dev_handle_t* dev_handle, i2c_device_config_t* dev_cfg) {
     if (bus_handle == NULL) {
-        // 
+        ESP_LOGE(TAG, "I2C Bus uninitialized, cannot add device");
         return ESP_ERR_INVALID_STATE;
     }
-    esp_err_t err = i2c_master_bus_add_device(&bus_handle, dev_cfg, dev_handle);
+    esp_err_t err = i2c_master_bus_add_device(bus_handle, dev_cfg, dev_handle);
     if (err != ESP_OK) {
-        // ESP_LOGE(TAG, "Unable to add device");
+        ESP_LOGE(TAG, "Unable to add device");
         return err;
     }
 
