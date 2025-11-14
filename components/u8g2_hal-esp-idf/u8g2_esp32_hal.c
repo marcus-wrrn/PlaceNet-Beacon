@@ -5,7 +5,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "u8g2_esp32_hal.h"
-#include "protocol_drivers.h"
+#include "beacon_i2c_driver.h"
+#include "beacon_spi_driver.h"
 
 static const char* TAG = "u8g2_hal";
 static const unsigned int I2C_TIMEOUT_MS = 1000;
@@ -64,15 +65,6 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
         break;
       }
 
-      spi_bus_config_t bus_config = {0};
-      bus_config.sclk_io_num = u8g2_esp32_hal.bus.spi.clk;   // CLK
-      bus_config.mosi_io_num = u8g2_esp32_hal.bus.spi.mosi;  // MOSI
-      bus_config.miso_io_num = GPIO_NUM_NC;                  // MISO
-      bus_config.quadwp_io_num = GPIO_NUM_NC;                // Not used
-      bus_config.quadhd_io_num = GPIO_NUM_NC;                // Not used
-      // ESP_LOGI(TAG, "... Initializing bus.");
-      ESP_ERROR_CHECK(spi_bus_initialize(HOST, &bus_config, SPI_DMA_CH_AUTO));
-
       spi_device_interface_config_t dev_config = {0};
       dev_config.address_bits = 0;
       dev_config.command_bits = 0;
@@ -88,7 +80,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
       dev_config.pre_cb = NULL;
       dev_config.post_cb = NULL;
       // ESP_LOGI(TAG, "... Adding device bus.");
-      ESP_ERROR_CHECK(spi_bus_add_device(HOST, &dev_config, &spi_dev_handle));
+      ESP_ERROR_CHECK(beacon_spi_add_device(&spi_dev_handle, &dev_config));
 
       break;
     }
@@ -139,7 +131,7 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t* u8x8,
         .scl_speed_hz = I2C_MASTER_FREQ_HZ,
       };
       
-      esp_err_t ret = prot_driver_i2c_add_device(&i2c_dev_handle, &dev_cfg);
+      esp_err_t ret = beacon_i2c_driver_add_device(&i2c_dev_handle, &dev_cfg);
       if (ret != ESP_OK) {
         ESP_LOGE(TAG, "I2C device add failed: %s", esp_err_to_name(ret));
         ESP_ERROR_CHECK(ret);

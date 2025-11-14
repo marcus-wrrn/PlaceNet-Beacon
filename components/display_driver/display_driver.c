@@ -2,7 +2,8 @@
 #include "display_driver.h"
 #include "u8g2.h"
 #include "u8g2_esp32_hal.h"
-#include "protocol_drivers.h"
+#include "beacon_i2c_driver.h"
+#include "beacon_spi_driver.h"
 
 static u8g2_t u8g2;
 
