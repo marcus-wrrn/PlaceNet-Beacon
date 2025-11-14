@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "u8g2_esp32_hal.h"
+#include "protocol_drivers.h"
 
 static const char* TAG = "u8g2_hal";
 static const unsigned int I2C_TIMEOUT_MS = 1000;
@@ -73,7 +74,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
       bus_config.quadwp_io_num = GPIO_NUM_NC;                // Not used
       bus_config.quadhd_io_num = GPIO_NUM_NC;                // Not used
       // ESP_LOGI(TAG, "... Initializing bus.");
-      ESP_ERROR_CHECK(spi_bus_initialize(HOST, &bus_config, 1));
+      ESP_ERROR_CHECK(spi_bus_initialize(HOST, &bus_config, SPI_DMA_CH_AUTO));
 
       spi_device_interface_config_t dev_config = {0};
       dev_config.address_bits = 0;
@@ -134,32 +135,6 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t* u8x8,
     }
     
     case U8X8_MSG_BYTE_INIT: {
-      if (u8g2_esp32_hal.bus.i2c.sda == U8G2_ESP32_HAL_UNDEFINED ||
-          u8g2_esp32_hal.bus.i2c.scl == U8G2_ESP32_HAL_UNDEFINED) {
-        break;
-      }
-      
-      ESP_LOGI(TAG, "Initializing I2C master bus");
-      ESP_LOGI(TAG, "sda_io_num %d", u8g2_esp32_hal.bus.i2c.sda);
-      ESP_LOGI(TAG, "scl_io_num %d", u8g2_esp32_hal.bus.i2c.scl);
-      ESP_LOGI(TAG, "clk_speed %d", I2C_MASTER_FREQ_HZ);
-      
-      // Configure I2C master bus
-      i2c_master_bus_config_t i2c_bus_config = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .i2c_port = I2C_MASTER_NUM,
-        .scl_io_num = u8g2_esp32_hal.bus.i2c.scl,
-        .sda_io_num = u8g2_esp32_hal.bus.i2c.sda,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-      };
-      
-      esp_err_t ret = i2c_new_master_bus(&i2c_bus_config, &i2c_bus_handle);
-      if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2C master bus init failed: %s", esp_err_to_name(ret));
-        ESP_ERROR_CHECK(ret);
-      }
-      
       ESP_LOGI(TAG, "Creating I2C device with address 0x3C");
       i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -167,7 +142,7 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t* u8x8,
         .scl_speed_hz = I2C_MASTER_FREQ_HZ,
       };
       
-      ret = i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &i2c_dev_handle);
+      esp_err_t ret = prot_driver_i2c_add_device(&dev_cfg, &dev_cfg);
       if (ret != ESP_OK) {
         ESP_LOGE(TAG, "I2C device add failed: %s", esp_err_to_name(ret));
         ESP_ERROR_CHECK(ret);
@@ -210,7 +185,6 @@ uint8_t u8g2_esp32_i2c_byte_cb(u8x8_t* u8x8,
                                             pdMS_TO_TICKS(I2C_TIMEOUT_MS));
         if (ret != ESP_OK) {
           ESP_LOGE(TAG, "I2C transmit failed: %s (len=%d)", esp_err_to_name(ret), i2c_buffer_len);
-          // Don't assert - let's see what's happening
         } else {
           ESP_LOGI(TAG, "I2C transmit SUCCESS");
         }

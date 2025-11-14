@@ -1,4 +1,3 @@
-file(GLOB_RECURSE SOURCES src/*.c)
-idf_component_register(SRCS ${SOURCES}
+idf_component_register(SRCS "u8g2_esp32_hal.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES driver freertos u8g2)
+                       REQUIRES driver freertos u8g2 protocol_drivers)
