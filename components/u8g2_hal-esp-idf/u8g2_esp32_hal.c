@@ -80,7 +80,7 @@ uint8_t u8g2_esp32_spi_byte_cb(u8x8_t* u8x8,
       dev_config.pre_cb = NULL;
       dev_config.post_cb = NULL;
       // ESP_LOGI(TAG, "... Adding device bus.");
-      ESP_ERROR_CHECK(beacon_spi_add_device(&spi_dev_handle, &dev_config));
+      ESP_ERROR_CHECK(beacon_spi_driver_add_device(&spi_dev_handle, &dev_config));
 
       break;
     }

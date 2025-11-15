@@ -14,7 +14,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "Initializing I2C");
     beacon_i2c_driver_init(I2C_SDA, I2C_SCL, I2C_NUM_1);
     ESP_LOGI(TAG, "Initializing SPI");
-    beacon_spi_init(RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_SCLK_PIN);
+    beacon_spi_driver_init(RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_SCLK_PIN);
 
 #ifdef BOARD_T_BEAM
     
