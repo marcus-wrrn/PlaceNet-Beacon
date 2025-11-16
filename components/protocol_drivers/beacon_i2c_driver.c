@@ -10,7 +10,8 @@ esp_err_t beacon_i2c_driver_init(gpio_num_t sda_pin, gpio_num_t scl_pin, i2c_por
         .scl_io_num = scl_pin,
         .sda_io_num = sda_pin,
         .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true
+        .flags.enable_internal_pullup = true,
+        .clk_source = I2C_CLK_SRC_DEFAULT
     };
 
     esp_err_t err = i2c_new_master_bus(&i2c_bus_config, &bus_handle);
