@@ -28,57 +28,42 @@ extern "C" {
 
 static const char* TAG = "MAIN";
 static volatile bool received_flag = false;
+static volatile bool transmit_flag = false;
 static const char rssi[16] = "0dBm";
 static const char snr[16] = "0dB";
 static const char payload[256] = "0";
 
-esp_err_t setup_gpio() {
+// esp_err_t setup_gpio() {
 
 
-    esp_err_t err;
+//     esp_err_t err;
 
-    // gpio_config_t io_conf_out = {};
-    // io_conf_out.mode = GPIO_MODE_OUTPUT;
-    // io_conf_out.pin_bit_mask = (1ULL << RADIO_DIO0_PIN);
+//     gpio_config_t io_conf_in = {};
+//     io_conf_in.mode = GPIO_MODE_INPUT;
+//     io_conf_in.pin_bit_mask = (1ULL << RADIO_DIO1_PIN);
 
-    // err = gpio_config(&io_conf_out);
-    // if (err != ESP_OK) {
-    //     ESP_LOGE(TAG, "Failed to configure DIO0 as OUTPUT");
-    //     return err;
-    // }
+//     // Optional: enable pull-up or pull-down
+//     io_conf_in.pull_up_en = GPIO_PULLUP_DISABLE;
+//     io_conf_in.pull_down_en = GPIO_PULLDOWN_DISABLE;
 
-    gpio_config_t io_conf_in = {};
-    io_conf_in.mode = GPIO_MODE_INPUT;
-    io_conf_in.pin_bit_mask = (1ULL << RADIO_DIO1_PIN);
+//     err = gpio_config(&io_conf_in);
+//     if (err != ESP_OK) {
+//         ESP_LOGE(TAG, "Failed to configure DIO2 as INPUT");
+//         return err;
+//     }
 
-    // Optional: enable pull-up or pull-down
-    io_conf_in.pull_up_en = GPIO_PULLUP_DISABLE;
-    io_conf_in.pull_down_en = GPIO_PULLDOWN_DISABLE;
-
-    err = gpio_config(&io_conf_in);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure DIO2 as INPUT");
-        return err;
-    }
-
-    return ESP_OK;
-}
+//     return ESP_OK;
+// }
 
 void set_flag(void) {
     received_flag = true;
 }
 
-extern "C" void app_main(void) {
-    ESP_LOGI(TAG, "Initializing GPIO");
-    esp_err_t err = setup_gpio();
-    if (err != ESP_OK) {
-        vTaskDelete(NULL);
-    }
+void set_transmit_flag(void) {
+    transmit_flag = true;
+}
 
-    // err = beacon_spi_driver_init(RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_SCLK_PIN);
-    // if (err != ESP_OK) {
-    //     vTaskDelete(NULL);
-    // }
+extern "C" void app_main(void) {
 
     vTaskDelay(pdMS_TO_TICKS(1500));
 
@@ -94,7 +79,8 @@ extern "C" void app_main(void) {
         vTaskDelete(NULL);
     }
 
-    radio_module.setPacketReceivedAction(set_flag);
+    //radio_module.setPacketReceivedAction(set_flag);
+    radio_module.setPacketSentAction(set_transmit_flag);
 
     if (radio_module.setFrequency(CONFIG_RADIO_FREQ) == RADIOLIB_ERR_INVALID_FREQUENCY) {
         ESP_LOGE(TAG, "Invalid Radio frequency");
@@ -126,6 +112,22 @@ extern "C" void app_main(void) {
         vTaskDelete(NULL);
     }
 
+    // For transmitting packets
+    if (radio_module.setCurrentLimit(140) == RADIOLIB_ERR_INVALID_CURRENT_LIMIT) {
+        ESP_LOGE(TAG, "Invalid current limit");
+        vTaskDelete(NULL);
+    }
+
+    if (radio_module.setPreambleLength(16) == RADIOLIB_ERR_INVALID_PREAMBLE_LENGTH) {
+        ESP_LOGE(TAG, "Invalid preamble length");
+        vTaskDelete(NULL);
+    }
+
+    if (radio_module.setCRC(false) == RADIOLIB_ERR_INVALID_CRC_CONFIGURATION) {
+        ESP_LOGE(TAG, "CRC is invalid");
+        vTaskDelete(NULL);
+    }
+
 
     ESP_LOGI(TAG, "Initializing I2C");
     beacon_i2c_driver_init(I2C_SDA, I2C_SCL, I2C_NUM_1);
@@ -135,25 +137,55 @@ extern "C" void app_main(void) {
 #ifdef BOARD_T_BEAM
     
     disp_init_i2c(I2C_SDA, I2C_SCL, 0x3C << 1);
-#elif BOARD_T_DECK
-    disp_init_spi(RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_SCLK_PIN, TFT_CS_PIN, TFT_DC_PIN);
-#endif
-
     ESP_LOGI(TAG, "Sending String");
     disp_draw_str(0, 10, "Hello World");
     ESP_LOGI(TAG, "Drawing screen");
     disp_send_buffer();
     disp_draw_str(0, 19, "Test");
     disp_send_buffer();
+    ESP_LOGI(TAG, "Radio Sending First packet");
+    if (radio_module.startTransmit("Hello World", 11) != RADIOLIB_ERR_NONE) {
+        ESP_LOGE(TAG, "Unable to transmit packet");
+        vTaskDelete(NULL);
+    };
+#elif BOARD_T_DECK
+    //disp_init_spi(RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_SCLK_PIN, TFT_CS_PIN, TFT_DC_PIN);
+    // ESP_LOGI(TAG, "Radio Sending First packet");
+    // if (radio_module.startTransmit("Hello World", 11) != RADIOLIB_ERR_NONE) {
+    //     ESP_LOGE(TAG, "Unable to transmit packet");
+    //     vTaskDelete(NULL);
+    // };
 
-    ESP_LOGI(TAG, "Done: Entering super loop");
+    ESP_LOGI(TAG, "Starting LoRa Receiver");
+    radio_module.startReceive();
+#endif
 
+    
+    char value[20];
+    uint8_t count = 0;
+    
     while(1) {
-        if (received_flag) {
+        if (transmit_flag) {
+            
+            transmit_flag = false;
+            count++;
             disp_clear_buffer();
-            disp_draw_str(0, 10, "Received Packet!");
+            snprintf(value, sizeof(value), "Packet: %d", count);
+            disp_draw_str(0, 10, value);
             disp_send_buffer();
+            ESP_LOGI(TAG, "TRANSMIT SUCCESS - Count: %d", count);
+            radio_module.startTransmit("Hello World", 11);
+            
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        if (received_flag) {
+            received_flag = false;
+           // disp_clear_buffer();
+            //disp_draw_str(0, count, "PACKET RECEIVED!");
+            ESP_LOGI(TAG, "Packet Received!!!");
+            count += 9;
+            radio_module.startReceive();
+            //disp_send_buffer();
+        }
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
