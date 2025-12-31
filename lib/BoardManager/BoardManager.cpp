@@ -3,10 +3,10 @@
  * @brief     Board initialization and peripheral management for T-Beam Supreme
  */
 
-#include "LoRaBoard.h"
+#include "BoardManager.h"
 #include "logger.h"
 #include "soc/rtc.h"
-#define TAG "LoRaBoard"
+#define TAG "BOARD_MANAGER"
 #ifdef ENABLE_BLE
 #include <BLEDevice.h>
 #include <BLEUtils.h>

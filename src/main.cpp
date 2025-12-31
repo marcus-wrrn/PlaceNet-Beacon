@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "LoRaBoard.h"
+#include "BoardManager.h"
 #include "logger.h"
 
 static const char* TAG = "MAIN";
