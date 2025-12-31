@@ -2,6 +2,10 @@
 
 #include "config.h"
 
+#ifdef HAS_PMU
+#include "PMUManager.h"
+#endif
+
 #ifdef HAS_SDCARD
 #include <SD.h>
 #endif
@@ -75,10 +79,6 @@ public:
     bool isInitialized() const { return initialized_; }
 
     // Subsystem initialization
-    #ifdef HAS_PMU
-    bool initializePower();
-    void disablePeripherals();
-    #endif
 
     #ifdef DISPLAY_ADDR
     bool initializeDisplay();
@@ -94,10 +94,6 @@ public:
     #endif
 
     // Runtime operations
-    #ifdef HAS_PMU
-    void processPMUEvents(void (*buttonPressCallback)(void) = nullptr);
-    #endif
-
     void printDeviceStatus(bool radioOnline);
     void scanI2CDevices(TwoWire* wire);
     void scanWiFiNetworks();
@@ -111,8 +107,8 @@ public:
     const DevInfo_t& getDeviceInfo() const { return deviceInfo_; }
 
     #ifdef HAS_PMU
-    XPowersLibInterface* getPMU() { return pmu_; }
-    bool isPMUInterrupt() const { return pmuInterrupt_; }
+    PMUManager* getPMUManager() { return pmuManager_; }
+    const PMUManager* getPMUManager() const { return pmuManager_; }
     #endif
 
     #ifdef DISPLAY_MODEL
@@ -137,11 +133,6 @@ private:
     void getChipInfo();
     void printWakeupReason();
 
-    #ifdef HAS_PMU
-    static void pmuInterruptHandler();  // Static for ISR
-    void handlePMUInterrupt();          // Instance method
-    #endif
-
     #ifdef HAS_GPS
     bool probeL76K();
     static int getGPSAck(uint8_t* buffer, uint16_t size, uint8_t reqClass, uint8_t reqID);
@@ -162,8 +153,7 @@ private:
     bool displayDisabled_;
 
     #ifdef HAS_PMU
-    XPowersLibInterface* pmu_;
-    bool pmuInterrupt_;
+    PMUManager* pmuManager_;
     #endif
 
     #ifdef DISPLAY_MODEL

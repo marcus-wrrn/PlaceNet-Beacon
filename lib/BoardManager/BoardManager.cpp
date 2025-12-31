@@ -13,14 +13,12 @@
 #include <BLEServer.h>
 #endif
 
-// Constructor
 LoRaBoardManager::LoRaBoardManager()
     : deviceOnline_(0)
     , initialized_(false)
     , displayDisabled_(false)
     #ifdef HAS_PMU
-    , pmu_(nullptr)
-    , pmuInterrupt_(false)
+    , pmuManager_(nullptr)
     #endif
     #ifdef DISPLAY_MODEL
     , u8g2_(nullptr)
@@ -33,13 +31,12 @@ LoRaBoardManager::LoRaBoardManager()
     #endif
 {}
 
-// Destructor
 LoRaBoardManager::~LoRaBoardManager() {
     #ifdef HAS_PMU
-    if (pmu_) {
-        disablePeripherals();
-        delete pmu_;
-        pmu_ = nullptr;
+    if (pmuManager_) {
+        pmuManager_->disablePeripherals();
+        delete pmuManager_;
+        pmuManager_ = nullptr;
     }
     #endif
 
@@ -55,308 +52,6 @@ LoRaBoardManager& LoRaBoardManager::getInstance() {
     static LoRaBoardManager instance;
     return instance;
 }
-
-#ifdef HAS_PMU
-void LoRaBoardManager::pmuInterruptHandler() {
-    getInstance().handlePMUInterrupt();
-}
-
-void LoRaBoardManager::handlePMUInterrupt() {
-    pmuInterrupt_ = true;
-}
-
-bool LoRaBoardManager::initializePower() {
-    if (!pmu_) {
-        pmu_ = new XPowersAXP2101(PMU_WIRE_PORT);
-        if (!pmu_->init()) {
-            LOGW(TAG, "Failed to find AXP2101 power management");
-            delete pmu_;
-            pmu_ = NULL;
-        } else {
-            LOGI(TAG, "AXP2101 PMU init succeeded, using AXP2101 PMU");
-        }
-    }
-
-    if (!pmu_) {
-        pmu_ = new XPowersAXP192(PMU_WIRE_PORT);
-        if (!pmu_->init()) {
-            LOGW(TAG, "Failed to find AXP192 power management");
-            delete pmu_;
-            pmu_ = NULL;
-        } else {
-            LOGI(TAG, "AXP192 PMU init succeeded, using AXP192 PMU");
-        }
-    }
-
-    if (!pmu_) {
-        return false;
-    }
-
-    deviceOnline_ |= POWERMANAGE_ONLINE;
-
-    pmu_->setChargingLedMode(XPOWERS_CHG_LED_CTRL_CHG);
-
-    pinMode(PMU_IRQ, INPUT_PULLUP);
-    attachInterrupt(PMU_IRQ, pmuInterruptHandler, FALLING);
-
-    if (pmu_->getChipModel() == XPOWERS_AXP192) {
-
-        pmu_->setProtectedChannel(XPOWERS_DCDC3);
-
-        // lora
-        pmu_->setPowerChannelVoltage(XPOWERS_LDO2, 3300);
-        // gps
-        pmu_->setPowerChannelVoltage(XPOWERS_LDO3, 3300);
-        // oled
-        pmu_->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
-
-        pmu_->enablePowerOutput(XPOWERS_LDO2);
-        pmu_->enablePowerOutput(XPOWERS_LDO3);
-
-        //protected oled power source
-        pmu_->setProtectedChannel(XPOWERS_DCDC1);
-        //protected esp32 power source
-        pmu_->setProtectedChannel(XPOWERS_DCDC3);
-        // enable oled power
-        pmu_->enablePowerOutput(XPOWERS_DCDC1);
-
-        //disable not use channel
-        pmu_->disablePowerOutput(XPOWERS_DCDC2);
-
-        pmu_->disableIRQ(XPOWERS_AXP192_ALL_IRQ);
-
-        pmu_->enableIRQ(XPOWERS_AXP192_VBUS_REMOVE_IRQ |
-                       XPOWERS_AXP192_VBUS_INSERT_IRQ |
-                       XPOWERS_AXP192_BAT_CHG_DONE_IRQ |
-                       XPOWERS_AXP192_BAT_CHG_START_IRQ |
-                       XPOWERS_AXP192_BAT_REMOVE_IRQ |
-                       XPOWERS_AXP192_BAT_INSERT_IRQ |
-                       XPOWERS_AXP192_PKEY_SHORT_IRQ
-                      );
-
-    } else if (pmu_->getChipModel() == XPOWERS_AXP2101) {
-
-        // T-Beam S3 Supreme specific configuration
-
-        // In order to avoid bus occupation, during initialization, the SD card and QMC sensor are powered off and restarted
-        if (ESP_SLEEP_WAKEUP_UNDEFINED == esp_sleep_get_wakeup_cause()) {
-            LOGI(TAG, "Power off and restart ALDO BLDO..");
-            pmu_->disablePowerOutput(XPOWERS_ALDO1);
-            pmu_->disablePowerOutput(XPOWERS_ALDO2);
-            pmu_->disablePowerOutput(XPOWERS_BLDO1);
-            delay(250);
-        }
-
-        //gps
-        pmu_->setPowerChannelVoltage(XPOWERS_ALDO4, 3300);
-        pmu_->enablePowerOutput(XPOWERS_ALDO4);
-
-        // lora
-        pmu_->setPowerChannelVoltage(XPOWERS_ALDO3, 3300);
-        pmu_->enablePowerOutput(XPOWERS_ALDO3);
-
-        // Sensor
-        pmu_->setPowerChannelVoltage(XPOWERS_ALDO1, 3300);
-        pmu_->enablePowerOutput(XPOWERS_ALDO1);
-
-        pmu_->setPowerChannelVoltage(XPOWERS_ALDO2, 3300);
-        pmu_->enablePowerOutput(XPOWERS_ALDO2);
-
-        //Sdcard
-        pmu_->setPowerChannelVoltage(XPOWERS_BLDO1, 3300);
-        pmu_->enablePowerOutput(XPOWERS_BLDO1);
-
-        pmu_->setPowerChannelVoltage(XPOWERS_BLDO2, 3300);
-        pmu_->enablePowerOutput(XPOWERS_BLDO2);
-
-        //face m.2
-        pmu_->setPowerChannelVoltage(XPOWERS_DCDC3, 3300);
-        pmu_->enablePowerOutput(XPOWERS_DCDC3);
-
-        pmu_->setPowerChannelVoltage(XPOWERS_DCDC4, XPOWERS_AXP2101_DCDC4_VOL2_MAX);
-        pmu_->enablePowerOutput(XPOWERS_DCDC4);
-
-        pmu_->setPowerChannelVoltage(XPOWERS_DCDC5, 3300);
-        pmu_->enablePowerOutput(XPOWERS_DCDC5);
-
-        //ESP32 VDD 3300mV - protected, automatically managed
-        pmu_->setProtectedChannel(XPOWERS_DCDC1);
-
-        //not use channel
-        pmu_->disablePowerOutput(XPOWERS_DCDC2);
-        pmu_->disablePowerOutput(XPOWERS_DLDO1);
-        pmu_->disablePowerOutput(XPOWERS_DLDO2);
-        pmu_->disablePowerOutput(XPOWERS_VBACKUP);
-
-        // Set constant current charge current limit
-        pmu_->setChargerConstantCurr(XPOWERS_AXP2101_CHG_CUR_500MA);
-
-        // Set charge cut-off voltage
-        pmu_->setChargeTargetVoltage(XPOWERS_AXP2101_CHG_VOL_4V2);
-
-        // Disable all interrupts
-        pmu_->disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-        // Clear all interrupt flags
-        pmu_->clearIrqStatus();
-        // Enable the required interrupt function
-        pmu_->enableIRQ(
-            XPOWERS_AXP2101_BAT_INSERT_IRQ    | XPOWERS_AXP2101_BAT_REMOVE_IRQ      |   //BATTERY
-            XPOWERS_AXP2101_VBUS_INSERT_IRQ   | XPOWERS_AXP2101_VBUS_REMOVE_IRQ     |   //VBUS
-            XPOWERS_AXP2101_PKEY_SHORT_IRQ    | XPOWERS_AXP2101_PKEY_LONG_IRQ       |   //POWER KEY
-            XPOWERS_AXP2101_BAT_CHG_DONE_IRQ  | XPOWERS_AXP2101_BAT_CHG_START_IRQ       //CHARGE
-        );
-    }
-
-    pmu_->enableSystemVoltageMeasure();
-    pmu_->enableVbusVoltageMeasure();
-    pmu_->enableBattVoltageMeasure();
-
-    LOGI(TAG, "=========================================");
-    if (pmu_->isChannelAvailable(XPOWERS_DCDC1)) {
-        LOGI(TAG, "DC1  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC1)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC1));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_DCDC2)) {
-        LOGI(TAG, "DC2  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC2)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC2));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_DCDC3)) {
-        LOGI(TAG, "DC3  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC3)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC3));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_DCDC4)) {
-        LOGI(TAG, "DC4  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC4)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC4));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_DCDC5)) {
-        LOGI(TAG, "DC5  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC5)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC5));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_LDO2)) {
-        LOGI(TAG, "LDO2 : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_LDO2)   ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_LDO2));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_LDO3)) {
-        LOGI(TAG, "LDO3 : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_LDO3)   ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_LDO3));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_ALDO1)) {
-        LOGI(TAG, "ALDO1: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_ALDO1)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_ALDO1));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_ALDO2)) {
-        LOGI(TAG, "ALDO2: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_ALDO2)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_ALDO2));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_ALDO3)) {
-        LOGI(TAG, "ALDO3: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_ALDO3)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_ALDO3));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_ALDO4)) {
-        LOGI(TAG, "ALDO4: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_ALDO4)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_ALDO4));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_BLDO1)) {
-        LOGI(TAG, "BLDO1: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_BLDO1)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_BLDO1));
-    }
-    if (pmu_->isChannelAvailable(XPOWERS_BLDO2)) {
-        LOGI(TAG, "BLDO2: %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_BLDO2)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_BLDO2));
-    }
-    LOGI(TAG, "=========================================");
-
-    // Set the time of pressing the button to turn off
-    pmu_->setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
-    uint8_t opt = pmu_->getPowerKeyPressOffTime();
-    const char* timeout_str;
-    switch (opt) {
-    case XPOWERS_POWEROFF_4S: timeout_str = "4 Second";
-        break;
-    case XPOWERS_POWEROFF_6S: timeout_str = "6 Second";
-        break;
-    case XPOWERS_POWEROFF_8S: timeout_str = "8 Second";
-        break;
-    case XPOWERS_POWEROFF_10S: timeout_str = "10 Second";
-        break;
-    default:
-        timeout_str = "Unknown";
-        break;
-    }
-    LOGI(TAG, "PowerKeyPressOffTime: %s", timeout_str);
-    return true;
-}
-
-void LoRaBoardManager::disablePeripherals() {
-    if (!pmu_) return;
-
-    pmu_->setChargingLedMode(XPOWERS_CHG_LED_OFF);
-    // Disable the PMU measurement section
-    pmu_->disableSystemVoltageMeasure();
-    pmu_->disableVbusVoltageMeasure();
-    pmu_->disableBattVoltageMeasure();
-    pmu_->disableTemperatureMeasure();
-    pmu_->disableBattDetection();
-
-    if (pmu_->getChipModel() == XPOWERS_AXP2101) {
-        // Disable all PMU interrupts
-        pmu_->disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-        // Clear the PMU interrupt status before sleeping
-        pmu_->clearIrqStatus();
-
-        // T-Beam S3 Supreme peripheral power down
-        pmu_->disablePowerOutput(XPOWERS_ALDO4);
-        pmu_->disablePowerOutput(XPOWERS_ALDO3);
-        pmu_->disablePowerOutput(XPOWERS_ALDO2);
-        pmu_->disablePowerOutput(XPOWERS_ALDO1);
-        pmu_->disablePowerOutput(XPOWERS_BLDO1);
-        pmu_->disablePowerOutput(XPOWERS_BLDO2);
-        pmu_->disablePowerOutput(XPOWERS_DCDC3);
-        pmu_->disablePowerOutput(XPOWERS_DCDC4);
-        pmu_->disablePowerOutput(XPOWERS_DCDC5);
-    } else if (pmu_->getChipModel() == XPOWERS_AXP192) {
-        // Disable all PMU interrupts
-        pmu_->disableIRQ(XPOWERS_AXP192_ALL_IRQ);
-        // Clear the PMU interrupt status
-        pmu_->clearIrqStatus();
-        // LoRa VDD
-        pmu_->disablePowerOutput(XPOWERS_LDO2);
-        // GNSS VDD
-        pmu_->disablePowerOutput(XPOWERS_LDO3);
-    }
-}
-
-void LoRaBoardManager::processPMUEvents(void (*pressed_cb)(void)) {
-    if (!pmu_) {
-        return;
-    }
-    if (!pmuInterrupt_) {
-        return;
-    }
-
-    pmuInterrupt_ = false;
-    // Get PMU Interrupt Status Register
-    uint32_t status = pmu_->getIrqStatus();
-    LOGD(TAG, "STATUS => HEX: %X BIN: %s", status, String(status, BIN).c_str());
-
-    if (pmu_->isVbusInsertIrq()) {
-        LOGI(TAG, "isVbusInsert");
-    }
-    if (pmu_->isVbusRemoveIrq()) {
-        LOGI(TAG, "isVbusRemove");
-    }
-    if (pmu_->isBatInsertIrq()) {
-        LOGI(TAG, "isBatInsert");
-    }
-    if (pmu_->isBatRemoveIrq()) {
-        LOGI(TAG, "isBatRemove");
-    }
-    if (pmu_->isPekeyShortPressIrq()) {
-        LOGI(TAG, "isPekeyShortPress");
-        if (pressed_cb) {
-            pressed_cb();
-        }
-    }
-    if (pmu_->isPekeyLongPressIrq()) {
-        LOGI(TAG, "isPekeyLongPress");
-    }
-    if (pmu_->isBatChargeDoneIrq()) {
-        LOGI(TAG, "isBatChargeDone");
-    }
-    if (pmu_->isBatChargeStartIrq()) {
-        LOGI(TAG, "isBatChargeStart");
-    }
-    // Clear PMU Interrupt Status Register
-    pmu_->clearIrqStatus();
-}
-#endif
 
 #ifdef DISPLAY_ADDR
 bool LoRaBoardManager::initializeDisplay() {
@@ -529,8 +224,6 @@ bool LoRaBoardManager::initialize(bool disableDisplay) {
 
     displayDisabled_ = disableDisplay;
 
-    Serial.begin(115200);
-
     LOGI(TAG, "Initializing Board Manager");
 
     getChipInfo();
@@ -560,7 +253,17 @@ bool LoRaBoardManager::initialize(bool disableDisplay) {
     SerialGPS.begin(GPS_BAUD_RATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
 #endif
 
-    initializePower();
+#ifdef HAS_PMU
+    pmuManager_ = new PMUManager(PMU_WIRE_PORT, PMU_IRQ);
+    if (pmuManager_->initialize()) {
+        deviceOnline_ |= POWERMANAGE_ONLINE;
+        LOGI(TAG, "PMU initialization successful");
+    } else {
+        delete pmuManager_;
+        pmuManager_ = nullptr;
+        LOGW(TAG, "PMU initialization failed");
+    }
+#endif
 
     // Perform an I2C scan after power-on operation
 #ifdef I2C_SDA
@@ -623,7 +326,7 @@ void LoRaBoardManager::printDeviceStatus(bool radio_online) {
 #endif
 
 #ifdef HAS_PMU
-    LOGI(TAG, "Power        : %s", (pmu_) ? "+" : "-");
+    LOGI(TAG, "Power        : %s", (pmuManager_) ? "+" : "-");
 #endif
 
 #ifdef HAS_GPS
@@ -647,7 +350,7 @@ void LoRaBoardManager::printDeviceStatus(bool radio_online) {
         u8g2_->drawStr(62, 38, "Radio:");    u8g2_->drawStr(120, 38, (radio_online) ? "+" : "-");
 
 #ifdef HAS_PMU
-        u8g2_->drawStr(62, 54, "Power:");    u8g2_->drawStr(120, 54, (pmu_) ? "+" : "-");
+        u8g2_->drawStr(62, 54, "Power:");    u8g2_->drawStr(120, 54, (pmuManager_) ? "+" : "-");
 #endif
 
         u8g2_->sendBuffer();

@@ -5,7 +5,7 @@
 static const char* TAG = "MAIN";
 
 void setup() {
-    // Serial.begin() is now called in initialize()
+    Serial.begin(115200);
 
     LoRaBoardManager& board = LoRaBoardManager::getInstance();
     if (!board.initialize()) {
@@ -13,15 +13,17 @@ void setup() {
     }
     LOGI(TAG, "Board Initialized");
 
-    Serial.println("Success");
 }
 
 void loop() {
-    Serial.println("Hello");
+    LOGI(TAG, "Hello");
 
     #ifdef HAS_PMU
-    LoRaBoardManager::getInstance().processPMUEvents(nullptr);
+    PMUManager* pmu = LoRaBoardManager::getInstance().getPMUManager();
+    if (pmu) {
+        pmu->processEvents(nullptr);
+    }
     #endif
 
-    delay(100);
+    delay(1000);
 }
