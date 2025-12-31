@@ -12,13 +12,10 @@
 
 #define TAG "PMU_MANAGER"
 
-// File-scope static pointer for ISR access
 static PMUManager* g_pmuInstance = nullptr;
 
-// Static member initialization
 PMUManager* PMUManager::instance_ = nullptr;
 
-// Constructor
 PMUManager::PMUManager(TwoWire& wire, int irqPin)
     : wire_(wire)
     , irqPin_(irqPin)
@@ -26,7 +23,6 @@ PMUManager::PMUManager(TwoWire& wire, int irqPin)
     , initialized_(false)
     , pmuInterrupt_(false)
 {
-    // Register this instance for ISR access
     if (g_pmuInstance != nullptr) {
         LOGW(TAG, "Multiple PMUManager instances detected!");
     }
@@ -34,7 +30,6 @@ PMUManager::PMUManager(TwoWire& wire, int irqPin)
     instance_ = this;
 }
 
-// Destructor
 PMUManager::~PMUManager() {
     if (pmu_) {
         disablePeripherals();
@@ -42,7 +37,6 @@ PMUManager::~PMUManager() {
         pmu_ = nullptr;
     }
 
-    // Unregister instance
     if (g_pmuInstance == this) {
         g_pmuInstance = nullptr;
     }
@@ -50,25 +44,20 @@ PMUManager::~PMUManager() {
         instance_ = nullptr;
     }
 
-    // Detach interrupt
     detachInterrupt(digitalPinToInterrupt(irqPin_));
 }
 
-// Static ISR handler
 void PMUManager::pmuInterruptHandler() {
     if (g_pmuInstance) {
         g_pmuInstance->handleInterrupt();
     }
 }
 
-// Instance interrupt handler
 void PMUManager::handleInterrupt() {
     pmuInterrupt_ = true;
 }
 
-// Detect and initialize PMU
 bool PMUManager::detectAndInitializePMU() {
-    // Try AXP2101 first
     if (!pmu_) {
         pmu_ = new XPowersAXP2101(wire_);
         if (!pmu_->init()) {
@@ -322,7 +311,6 @@ void PMUManager::disablePeripherals() {
     if (pmu_->getChipModel() == XPOWERS_AXP2101) {
         // Disable all PMU interrupts
         pmu_->disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
-        // Clear the PMU interrupt status before sleeping
         pmu_->clearIrqStatus();
 
         // T-Beam S3 Supreme peripheral power down
@@ -336,18 +324,13 @@ void PMUManager::disablePeripherals() {
         pmu_->disablePowerOutput(XPOWERS_DCDC4);
         pmu_->disablePowerOutput(XPOWERS_DCDC5);
     } else if (pmu_->getChipModel() == XPOWERS_AXP192) {
-        // Disable all PMU interrupts
         pmu_->disableIRQ(XPOWERS_AXP192_ALL_IRQ);
-        // Clear the PMU interrupt status
         pmu_->clearIrqStatus();
-        // LoRa VDD
         pmu_->disablePowerOutput(XPOWERS_LDO2);
-        // GNSS VDD
         pmu_->disablePowerOutput(XPOWERS_LDO3);
     }
 }
 
-// Process PMU events
 void PMUManager::processEvents(void (*buttonPressCallback)(void)) {
     if (!pmu_) {
         return;
@@ -357,7 +340,6 @@ void PMUManager::processEvents(void (*buttonPressCallback)(void)) {
     }
 
     pmuInterrupt_ = false;
-    // Get PMU Interrupt Status Register
     uint32_t status = pmu_->getIrqStatus();
     LOGD(TAG, "STATUS => HEX: %X BIN: %s", status, String(status, BIN).c_str());
 
@@ -388,11 +370,9 @@ void PMUManager::processEvents(void (*buttonPressCallback)(void)) {
     if (pmu_->isBatChargeStartIrq()) {
         LOGI(TAG, "isBatChargeStart");
     }
-    // Clear PMU Interrupt Status Register
     pmu_->clearIrqStatus();
 }
 
-// Get chip model
 const char* PMUManager::getChipModel() const {
     if (!pmu_) return "Unknown";
 
@@ -406,7 +386,6 @@ const char* PMUManager::getChipModel() const {
     }
 }
 
-// Status accessors
 bool PMUManager::hasBattery() const {
     return pmu_ && pmu_->isBatteryConnect();
 }

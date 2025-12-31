@@ -154,14 +154,12 @@ private:
      */
     void logPowerChannels();
 
-    // Member variables
     TwoWire& wire_;                      // I2C bus reference
     int irqPin_;                         // Interrupt GPIO pin
     XPowersLibInterface* pmu_;           // PMU interface
     bool initialized_;                   // Initialization status
     volatile bool pmuInterrupt_;         // Interrupt flag
 
-    // Static instance pointer for ISR access
     static PMUManager* instance_;
 };
 

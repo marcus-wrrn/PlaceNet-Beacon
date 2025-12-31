@@ -12,7 +12,7 @@ void setup() {
         Serial.println("Board initialization failed!");
     }
     LOGI(TAG, "Board Initialized");
-
+    board.printDeviceStatus(false);
 }
 
 void loop() {
