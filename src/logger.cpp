@@ -22,17 +22,6 @@ const char* Logger::getLevelString(log_level_t level) {
     }
 }
 
-const char* Logger::getLevelColor(log_level_t level) {
-    switch (level) {
-        case LOG_LEVEL_ERROR:   return "\033[0;31m";
-        case LOG_LEVEL_WARN:    return "\033[0;33m";
-        case LOG_LEVEL_INFO:    return "\033[0;32m";
-        case LOG_LEVEL_DEBUG:   return "\033[0;36m";
-        case LOG_LEVEL_VERBOSE: return "\033[0;37m";
-        default:                return "\033[0m";
-    }
-}
-
 void Logger::log(log_level_t level, const char* tag, const char* format, va_list args) {
     if (level > currentLevel) {
         return;
@@ -41,8 +30,7 @@ void Logger::log(log_level_t level, const char* tag, const char* format, va_list
     char buffer[256];
     vsnprintf(buffer, sizeof(buffer), format, args);
 
-    Serial.printf("%s%s (%lu) [%s]: %s\033[0m\n",
-                  getLevelColor(level),
+    Serial.printf("%s (%lu) [%s]: %s\n",
                   getLevelString(level),
                   millis(),
                   tag,

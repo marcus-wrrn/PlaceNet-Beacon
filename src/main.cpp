@@ -5,17 +5,15 @@
 static const char* TAG = "MAIN";
 
 void setup() {
-    Serial.begin(115200);
-    while (!Serial) { delay(10); }
-
-    LOGI(TAG, "Starting initialization...");
+    // Serial.begin() is now called in initialize()
 
     LoRaBoardManager& board = LoRaBoardManager::getInstance();
     if (!board.initialize()) {
-        LOGE(TAG, "Board initialization failed!");
-    } else {
-        LOGI(TAG, "Board initialized successfully");
+        Serial.println("Board initialization failed!");
     }
+    LOGI(TAG, "Board Initialized");
+
+    Serial.println("Success");
 }
 
 void loop() {

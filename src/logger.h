@@ -27,7 +27,6 @@ private:
     static log_level_t currentLevel;
     static void log(log_level_t level, const char* tag, const char* format, va_list args);
     static const char* getLevelString(log_level_t level);
-    static const char* getLevelColor(log_level_t level);
 };
 
 #define LOG_ERROR(tag, format, ...)   Logger::logError(tag, format, ##__VA_ARGS__)
