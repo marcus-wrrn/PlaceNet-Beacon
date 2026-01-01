@@ -1,13 +1,13 @@
-#include <Arduino.h>
 #include "BoardManager.h"
 #include "logger.h"
+#include <Arduino.h>
 
-static const char* TAG = "MAIN";
+static const char *TAG = "MAIN";
 
 void setup() {
     Serial.begin(115200);
 
-    LoRaBoardManager& board = LoRaBoardManager::getInstance();
+    LoRaBoardManager &board = LoRaBoardManager::getInstance();
     if (!board.initialize()) {
         Serial.println("Board initialization failed!");
     }
@@ -18,12 +18,12 @@ void setup() {
 void loop() {
     LOGI(TAG, "Hello");
 
-    #ifdef HAS_PMU
-    PMUManager* pmu = LoRaBoardManager::getInstance().getPMUManager();
+#ifdef HAS_PMU
+    PMUManager *pmu = LoRaBoardManager::getInstance().getPMUManager();
     if (pmu) {
         pmu->processEvents(nullptr);
     }
-    #endif
+#endif
 
     delay(1000);
 }
