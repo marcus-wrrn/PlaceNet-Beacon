@@ -1,36 +1,37 @@
 /**
- * @file PMUManager.cpp
+ * @file PMUModule.cpp
  * @brief Power Management Unit implementation for AXP192/AXP2101
  */
 
-#include "PMUManager.h"
+#include "PMUModule.h"
 
 #ifdef HAS_PMU
 
 #include "logger.h"
 #include <esp_sleep.h>
 
-#define TAG "PMU_MANAGER"
+static const char* TAG = "PMU_MODULE";
 
-static PMUManager* g_pmuInstance = nullptr;
+static PMUModule* g_pmuInstance = nullptr;
 
-PMUManager* PMUManager::instance_ = nullptr;
+PMUModule* PMUModule::instance_ = nullptr;
 
-PMUManager::PMUManager(TwoWire& wire, int irqPin)
+PMUModule::PMUModule(TwoWire& wire, int irqPin)
     : wire_(wire)
     , irqPin_(irqPin)
     , pmu_(nullptr)
     , initialized_(false)
     , pmuInterrupt_(false)
+    , pmuTaskHandle_(nullptr)
 {
     if (g_pmuInstance != nullptr) {
-        LOGW(TAG, "Multiple PMUManager instances detected!");
+        LOGW(TAG, "Multiple PMUModule instances detected!");
     }
     g_pmuInstance = this;
     instance_ = this;
 }
 
-PMUManager::~PMUManager() {
+PMUModule::~PMUModule() {
     if (pmu_) {
         disablePeripherals();
         delete pmu_;
@@ -47,17 +48,24 @@ PMUManager::~PMUManager() {
     detachInterrupt(digitalPinToInterrupt(irqPin_));
 }
 
-void PMUManager::pmuInterruptHandler() {
+void PMUModule::pmuInterruptHandler() {
     if (g_pmuInstance) {
         g_pmuInstance->handleInterrupt();
     }
 }
 
-void PMUManager::handleInterrupt() {
+void IRAM_ATTR PMUModule::handleInterrupt() {
     pmuInterrupt_ = true;
+
+    // Notify FreeRTOS task if handle is set
+    if (pmuTaskHandle_ != nullptr) {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(pmuTaskHandle_, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
 }
 
-bool PMUManager::detectAndInitializePMU() {
+bool PMUModule::detectAndInitializePMU() {
     if (!pmu_) {
         pmu_ = new XPowersAXP2101(wire_);
         if (!pmu_->init()) {
@@ -85,7 +93,7 @@ bool PMUManager::detectAndInitializePMU() {
 }
 
 // Configure AXP192
-void PMUManager::configureAXP192() {
+void PMUModule::configureAXP192() {
     pmu_->setProtectedChannel(XPOWERS_DCDC3);
 
     // lora
@@ -121,7 +129,7 @@ void PMUManager::configureAXP192() {
 }
 
 // Configure AXP2101
-void PMUManager::configureAXP2101() {
+void PMUModule::configureAXP2101() {
     // T-Beam S3 Supreme specific configuration
 
     // In order to avoid bus occupation, during initialization, the SD card and QMC sensor are powered off and restarted
@@ -194,14 +202,14 @@ void PMUManager::configureAXP2101() {
 }
 
 // Configure measurements
-void PMUManager::configureMeasurements() {
+void PMUModule::configureMeasurements() {
     pmu_->enableSystemVoltageMeasure();
     pmu_->enableVbusVoltageMeasure();
     pmu_->enableBattVoltageMeasure();
 }
 
 // Log power channels
-void PMUManager::logPowerChannels() {
+void PMUModule::logPowerChannels() {
     LOGI(TAG, "=========================================");
     if (pmu_->isChannelAvailable(XPOWERS_DCDC1)) {
         LOGI(TAG, "DC1  : %s   Voltage: %04u mV",  pmu_->isPowerChannelEnable(XPOWERS_DCDC1)  ? "+" : "-",  pmu_->getPowerChannelVoltage(XPOWERS_DCDC1));
@@ -246,7 +254,7 @@ void PMUManager::logPowerChannels() {
 }
 
 // Initialize PMU
-bool PMUManager::initialize() {
+bool PMUModule::initialize() {
     if (initialized_) {
         LOGW(TAG, "PMU already initialized");
         return true;
@@ -297,7 +305,7 @@ bool PMUManager::initialize() {
 }
 
 // Disable peripherals
-void PMUManager::disablePeripherals() {
+void PMUModule::disablePeripherals() {
     if (!pmu_) return;
 
     pmu_->setChargingLedMode(XPOWERS_CHG_LED_OFF);
@@ -331,7 +339,7 @@ void PMUManager::disablePeripherals() {
     }
 }
 
-void PMUManager::processEvents(void (*buttonPressCallback)(void)) {
+void PMUModule::processEvents(void (*buttonPressCallback)(void)) {
     if (!pmu_) {
         return;
     }
@@ -373,7 +381,7 @@ void PMUManager::processEvents(void (*buttonPressCallback)(void)) {
     pmu_->clearIrqStatus();
 }
 
-const char* PMUManager::getChipModel() const {
+const char* PMUModule::getChipModel() const {
     if (!pmu_) return "Unknown";
 
     switch (pmu_->getChipModel()) {
@@ -386,27 +394,27 @@ const char* PMUManager::getChipModel() const {
     }
 }
 
-bool PMUManager::hasBattery() const {
+bool PMUModule::hasBattery() const {
     return pmu_ && pmu_->isBatteryConnect();
 }
 
-bool PMUManager::isCharging() const {
+bool PMUModule::isCharging() const {
     return pmu_ && pmu_->isCharging();
 }
 
-bool PMUManager::isVbusConnected() const {
+bool PMUModule::isVbusConnected() const {
     return pmu_ && pmu_->isVbusIn();
 }
 
-uint16_t PMUManager::getBatteryVoltage() const {
+uint16_t PMUModule::getBatteryVoltage() const {
     return pmu_ ? pmu_->getBattVoltage() : 0;
 }
 
-uint16_t PMUManager::getVbusVoltage() const {
+uint16_t PMUModule::getVbusVoltage() const {
     return pmu_ ? pmu_->getVbusVoltage() : 0;
 }
 
-uint16_t PMUManager::getSystemVoltage() const {
+uint16_t PMUModule::getSystemVoltage() const {
     return pmu_ ? pmu_->getSystemVoltage() : 0;
 }
 

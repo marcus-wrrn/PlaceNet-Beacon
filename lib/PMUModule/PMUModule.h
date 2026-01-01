@@ -7,31 +7,33 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <XPowersLib.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 /**
- * @file PMUManager.h
+ * @file PMUModule.h
  * @brief Power Management Unit controller for AXP192/AXP2101
  */
 
-class PMUManager {
+class PMUModule {
 public:
     /**
      * @brief Constructor
      * @param wire I2C bus interface (e.g., Wire1)
      * @param irqPin GPIO pin for PMU interrupts
      */
-    PMUManager(TwoWire& wire, int irqPin);
+    PMUModule(TwoWire& wire, int irqPin);
 
     /**
      * @brief Destructor - cleans up PMU and detaches interrupt
      */
-    ~PMUManager();
+    ~PMUModule();
 
     // Non-copyable, non-movable
-    PMUManager(const PMUManager&) = delete;
-    PMUManager& operator=(const PMUManager&) = delete;
-    PMUManager(PMUManager&&) = delete;
-    PMUManager& operator=(PMUManager&&) = delete;
+    PMUModule(const PMUModule&) = delete;
+    PMUModule& operator=(const PMUModule&) = delete;
+    PMUModule(PMUModule&&) = delete;
+    PMUModule& operator=(PMUModule&&) = delete;
 
     /**
      * @brief Initialize and configure the PMU
@@ -67,6 +69,12 @@ public:
      * @brief Clear the interrupt flag
      */
     void clearInterrupt() { pmuInterrupt_ = false; }
+
+    /**
+     * @brief Set the task handle for ISR notifications
+     * @param handle FreeRTOS task handle to notify on interrupt
+     */
+    void setTaskHandle(TaskHandle_t handle) { pmuTaskHandle_ = handle; }
 
     /**
      * @brief Get direct access to the PMU interface
@@ -158,9 +166,10 @@ private:
     int irqPin_;                         // Interrupt GPIO pin
     XPowersLibInterface* pmu_;           // PMU interface
     bool initialized_;                   // Initialization status
-    volatile bool pmuInterrupt_;         // Interrupt flag
+    volatile bool pmuInterrupt_;         // Interrupt flag (legacy polling support)
+    TaskHandle_t pmuTaskHandle_;         // FreeRTOS task handle for notifications
 
-    static PMUManager* instance_;
+    static PMUModule* instance_;
 };
 
 #endif // HAS_PMU

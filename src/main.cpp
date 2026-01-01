@@ -1,29 +1,165 @@
-#include "BoardManager.h"
-#include "logger.h"
 #include <Arduino.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include "config.h"
+#include "logger.h"
+#include "BoardUtility.h"
+
+#ifdef HAS_PMU
+#include "PMUModule.h"
+#include "tasks/pmu_task.h"
+#endif
+
+#ifdef DISPLAY_MODEL
+#include "DisplayModule.h"
+#include "tasks/display_task.h"
+#endif
 
 static const char *TAG = "MAIN";
 
+// Global module pointers (managed by setup)
+#ifdef HAS_PMU
+static PMUModule* g_pmu = nullptr;
+#endif
+
+#ifdef DISPLAY_MODEL
+static DisplayModule* g_display = nullptr;
+#endif
+
 void setup() {
     Serial.begin(115200);
+    delay(500);
 
-    LoRaBoardManager &board = LoRaBoardManager::getInstance();
-    if (!board.initialize()) {
-        Serial.println("Board initialization failed!");
-    }
-    LOGI(TAG, "Board Initialized");
-    board.printDeviceStatus(false);
-}
+    Serial.println();
+    LOGI(TAG, "===========================================");
+    LOGI(TAG, "PlaceNet Beacon - FreeRTOS Architecture");
+    LOGI(TAG, "===========================================");
 
-void loop() {
-    LOGI(TAG, "Hello");
+    BoardUtility::printChipInfo();
+    BoardUtility::printWakeupReason();
+
+#ifdef I2C1_SDA
+    Wire1.begin(I2C1_SDA, I2C1_SCL);
+    LOGI(TAG, "Scan Wire1 (I2C1)...");
+    BoardUtility::scanI2C(&Wire1);
+#endif
 
 #ifdef HAS_PMU
-    PMUManager *pmu = LoRaBoardManager::getInstance().getPMUManager();
-    if (pmu) {
-        pmu->processEvents(nullptr);
+    g_pmu = new PMUModule(PMU_WIRE_PORT, PMU_IRQ);
+    if (!g_pmu->initialize()) {
+        LOGE(TAG, "PMU initialization failed!");
+        delete g_pmu;
+        g_pmu = nullptr;
+    } else {
+        LOGI(TAG, "PMU initialized successfully");
     }
 #endif
 
-    delay(1000);
+    // Allow PMU to stabilize power rails
+    delay(100);
+
+#ifdef I2C_SDA
+    Wire.begin(I2C_SDA, I2C_SCL);
+    LOGI(TAG, "Scan Wire (I2C0)...");
+    BoardUtility::scanI2C(&Wire);
+#endif
+
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+    LOGI(TAG, "SPI bus initialized");
+
+#ifdef HAS_GPS
+#ifdef GPS_EN_PIN
+    pinMode(GPS_EN_PIN, OUTPUT);
+    digitalWrite(GPS_EN_PIN, HIGH);
+    LOGI(TAG, "GPS power enabled");
+#endif
+#endif
+
+#ifdef DISPLAY_MODEL
+    g_display = new DisplayModule();
+    if (!g_display) {
+        LOGE(TAG, "Failed to create DisplayModule");
+    }
+#endif
+
+    LOGI(TAG, "Spawning FreeRTOS tasks...");
+
+#ifdef HAS_PMU
+    if (g_pmu) {
+        TaskHandle_t pmuTaskHandle = nullptr;
+        BaseType_t result = xTaskCreatePinnedToCore(
+            pmuTask,                        // Task function
+            "PMU",                          // Task name
+            4096,                           // Stack size (bytes)
+            g_pmu,                          // Task parameter (PMUModule*)
+            configMAX_PRIORITIES - 1,       // Priority (highest)
+            &pmuTaskHandle,                 // Task handle
+            0                               // Core 0
+        );
+
+        if (result == pdPASS && pmuTaskHandle != nullptr) {
+            g_pmu->setTaskHandle(pmuTaskHandle);
+            LOGI(TAG, "PMU task created on core 0 (priority %d)", configMAX_PRIORITIES - 1);
+        } else {
+            LOGE(TAG, "Failed to create PMU task");
+        }
+    }
+#endif
+
+#ifdef DISPLAY_MODEL
+    if (g_display) {
+        BaseType_t result = xTaskCreatePinnedToCore(
+            displayTask,                    // Task function
+            "Display",                      // Task name
+            4096,                           // Stack size (bytes)
+            g_display,                      // Task parameter (DisplayModule*)
+            5,                              // Priority (medium)
+            nullptr,                        // Task handle (not needed)
+            1                               // Core 1
+        );
+
+        if (result == pdPASS) {
+            LOGI(TAG, "Display task created on core 1 (priority 5)");
+        } else {
+            LOGE(TAG, "Failed to create Display task");
+        }
+    }
+#endif
+
+    LOGI(TAG, "===========================================");
+    LOGI(TAG, "All tasks spawned - entering main loop");
+    LOGI(TAG, "===========================================");
+}
+
+void loop() {
+
+#ifdef DISPLAY_MODEL
+    static uint32_t lastUpdate = 0;
+    if (millis() - lastUpdate > 100) {
+        lastUpdate = millis();
+
+        if (g_display) {
+            char buffer[64];
+            g_display->clear();
+            snprintf(buffer, sizeof(buffer), "Uptime: %lus", millis() / 1000);
+            g_display->drawText(buffer, 0, 16);
+
+#ifdef HAS_PMU
+            if (g_pmu) {
+                snprintf(buffer, sizeof(buffer), "Batt: %dmV", g_pmu->getBatteryVoltage());
+                g_display->drawText(buffer, 0, 32);
+            }
+#endif
+            g_display->sendBuffer();
+        }
+    }
+#endif
+
+    LOGI(TAG, "Main loop running - %lu seconds uptime", millis() / 1000);
+
+    // Yield to other tasks
+    vTaskDelay(pdMS_TO_TICKS(100));
 }
