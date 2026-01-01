@@ -44,12 +44,10 @@ bool DisplayModule::init() {
 
     LOGI(TAG, "Find Display model at 0x%02X address", DISPLAY_ADDR);
 
-    // Initialize U8g2
     u8g2_ = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE);
     u8g2_->begin();
     u8g2_->clearBuffer();
 
-    // Draw splash screen
     u8g2_->setFont(u8g2_font_inb19_mr);
     u8g2_->drawStr(0, 30, "PlaceNet");
     u8g2_->drawHLine(2, 50, 47);

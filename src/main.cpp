@@ -58,8 +58,7 @@ void setup() {
     }
 #endif
 
-    // Allow PMU to stabilize power rails
-    delay(100);
+    delay(100); // Allow PMU to stabilize power rails
 
 #ifdef I2C_SDA
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -157,9 +156,6 @@ void loop() {
         }
     }
 #endif
-
     LOGI(TAG, "Main loop running - %lu seconds uptime", millis() / 1000);
-
-    // Yield to other tasks
     vTaskDelay(pdMS_TO_TICKS(100));
 }

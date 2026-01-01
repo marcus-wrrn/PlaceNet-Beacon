@@ -8,11 +8,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-/**
- * @file DisplayModule.h
- * @brief Queue-based display module for FreeRTOS
- */
-
 enum DisplayCommandType {
     DISPLAY_CLEAR,
     DISPLAY_DRAW_TEXT,
