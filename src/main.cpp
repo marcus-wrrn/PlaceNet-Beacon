@@ -100,13 +100,13 @@ void setup() {
     if (g_pmu) {
         TaskHandle_t pmuTaskHandle = nullptr;
         BaseType_t result = xTaskCreatePinnedToCore(
-            pmuTask,                        // Task function
-            "PMU",                          // Task name
-            4096,                           // Stack size (bytes)
-            g_pmu,                          // Task parameter (PMUModule*)
-            configMAX_PRIORITIES - 1,       // Priority (highest)
-            &pmuTaskHandle,                 // Task handle
-            0                               // Core 0
+            pmuTask,                        
+            "PMU",                          
+            4096,                           
+            g_pmu,                          
+            configMAX_PRIORITIES - 1,       
+            &pmuTaskHandle,                 
+            0                               
         );
 
         if (result == pdPASS && pmuTaskHandle != nullptr) {
@@ -121,13 +121,13 @@ void setup() {
 #ifdef DISPLAY_MODEL
     if (g_display) {
         BaseType_t result = xTaskCreatePinnedToCore(
-            displayTask,                    // Task function
-            "Display",                      // Task name
-            4096,                           // Stack size (bytes)
-            g_display,                      // Task parameter (DisplayModule*)
-            5,                              // Priority (medium)
-            nullptr,                        // Task handle (not needed)
-            1                               // Core 1
+            displayTask,                    
+            "Display",                     
+            4096,                           
+            g_display,                      
+            5,                              
+            nullptr,                        
+            1                              
         );
 
         if (result == pdPASS) {
@@ -140,13 +140,13 @@ void setup() {
 
     if (g_lora) {
         BaseType_t result = xTaskCreatePinnedToCore(
-            loraTask,                       // Task function
-            "LoRa",                         // Task name
-            8192,                           // Stack size (bytes)
-            g_lora,                         // Task parameter (LoRaModule*)
-            8,                              // Priority (high)
-            nullptr,                        // Task handle (not needed)
-            1                               // Core 1
+            loraTask,                       
+            "LoRa",                         
+            8192,                           
+            g_lora,                         
+            8,                             
+            nullptr,                        
+            1                               
         );
 
         if (result == pdPASS) {
