@@ -56,12 +56,20 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /**
-     * @brief Send a LoRa packet
+     * @brief Send a LoRa packet (queues for transmission)
      * @param data Pointer to data buffer
      * @param length Length of data to send
      * @return true if packet queued successfully
      */
     bool send(const uint8_t* data, uint8_t length);
+
+    /**
+     * @brief Transmit data immediately (blocking)
+     * @param data Pointer to data buffer
+     * @param length Length of data to transmit
+     * @return true if transmission successful
+     */
+    bool transmit(const uint8_t* data, uint8_t length);
 
     /**
      * @brief Set radio mode
@@ -88,28 +96,18 @@ public:
      */
     LoRaMode getMode() const { return mode_; }
 
-    // TODO: Add methods for:
-    // - setFrequency()
-    // - setBandwidth()
-    // - setSpreadingFactor()
-    // - setCodingRate()
-    // - setPower()
-    // - getLastRSSI()
-    // - getLastSNR()
-
 private:
-    // TODO: Add RadioLib radio instance
-    // Example: SX1262* radio_;
+    SX1262* radio_;
 
     QueueHandle_t txQueue_;
     QueueHandle_t rxQueue_;
     LoRaMode mode_;
     bool initialized_;
 
-    // TODO: Add radio configuration parameters
-    // - Frequency
-    // - Bandwidth
-    // - Spreading factor
-    // - Coding rate
-    // - TX power
+    float frequency_;
+    float bandwidth_;
+    uint8_t spreadingFactor_;
+    uint8_t codingRate_;
+    int8_t txPower_;
+    uint8_t syncWord_;
 };

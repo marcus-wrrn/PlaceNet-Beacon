@@ -21,11 +21,9 @@ void pmuTask(void* pvParameters) {
     LOGI(TAG, "PMU task started");
 
     while (1) {
-        // Block waiting for ISR notification
         uint32_t notifyValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         if (notifyValue > 0) {
-            // PMU interrupt occurred, process events
             LOGD(TAG, "PMU interrupt received, processing events...");
             pmu->processEvents(nullptr);
         }

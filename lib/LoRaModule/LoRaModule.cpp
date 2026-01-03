@@ -4,14 +4,20 @@
 static const char* TAG = "LORA_MODULE";
 
 LoRaModule::LoRaModule()
-    : txQueue_(nullptr)
-    , rxQueue_(nullptr)
-    , mode_(LORA_MODE_IDLE)
-    , initialized_(false)
+    : radio_(nullptr),
+      txQueue_(nullptr),
+      rxQueue_(nullptr),
+      mode_(LORA_MODE_IDLE),
+      initialized_(false),
+      frequency_(CONFIG_RADIO_FREQ),
+      bandwidth_(CONFIG_RADIO_BW),
+      spreadingFactor_(10),
+      codingRate_(7),
+      txPower_(CONFIG_RADIO_OUTPUT_POWER),
+      syncWord_(0x12)
 {
-    // Create TX and RX queues
-    txQueue_ = xQueueCreate(10, sizeof(LoRaPacket));
-    rxQueue_ = xQueueCreate(10, sizeof(LoRaPacket));
+    txQueue_ = xQueueCreate(LORA_TX_QUEUE_LEN, sizeof(LoRaPacket));
+    rxQueue_ = xQueueCreate(LORA_RX_QUEUE_LEN, sizeof(LoRaPacket));
 
     if (!txQueue_ || !rxQueue_) {
         LOGE(TAG, "Failed to create LoRa queues");
@@ -28,7 +34,10 @@ LoRaModule::~LoRaModule() {
         rxQueue_ = nullptr;
     }
 
-    // TODO: Delete radio instance
+    if (radio_) {
+        delete radio_;
+        radio_ = nullptr;
+    }
 }
 
 bool LoRaModule::init() {
@@ -38,21 +47,29 @@ bool LoRaModule::init() {
     }
 
     LOGI(TAG, "Initializing LoRa radio...");
+    LOGI(TAG, "Frequency: %.1f MHz, BW: %.1f kHz, SF: %d, CR: 4/%d, Power: %d dBm",
+         frequency_, bandwidth_, spreadingFactor_, codingRate_, txPower_);
 
-    // TODO: Implement radio initialization
-    // Example:
-    // radio_ = new SX1262(new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN));
-    // int state = radio_->begin(frequency, bandwidth, sf, cr, syncWord, power, preambleLength);
-    // if (state != RADIOLIB_ERR_NONE) {
-    //     LOGE(TAG, "Radio initialization failed, code: %d", state);
-    //     return false;
-    // }
+    // TODO: make radio module dynamic
+    radio_ = new SX1262(new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN));
 
-    LOGW(TAG, "LoRa initialization STUB - not yet implemented");
-    LOGI(TAG, "TODO: Implement RadioLib initialization");
+    if (!radio_) {
+        LOGE(TAG, "Failed to allocate radio instance");
+        return false;
+    }
 
-    initialized_ = false;  // Set to true when actually implemented
-    return false;  // Return true when implemented
+    int state = radio_->begin(frequency_, bandwidth_, spreadingFactor_, codingRate_, syncWord_, txPower_, 8);
+
+    if (state != RADIOLIB_ERR_NONE) {
+        LOGE(TAG, "Radio initialization failed, code: %d", state);
+        delete radio_;
+        radio_ = nullptr;
+        return false;
+    }
+
+    LOGI(TAG, "LoRa radio initialized successfully");
+    initialized_ = true;
+    return true;
 }
 
 bool LoRaModule::send(const uint8_t* data, uint8_t length) {
@@ -87,9 +104,36 @@ bool LoRaModule::setMode(LoRaMode mode) {
         return false;
     }
 
-    // TODO: Implement radio mode changes
-    LOGD(TAG, "Setting mode to %d (STUB)", mode);
-
+    LOGD(TAG, "Setting mode to %d", mode);
     mode_ = mode;
     return true;
+}
+
+bool LoRaModule::transmit(const uint8_t* data, uint8_t length) {
+    if (!initialized_) {
+        LOGW(TAG, "Cannot transmit - LoRa not initialized");
+        return false;
+    }
+
+    if (!radio_) {
+        LOGE(TAG, "Radio instance is null");
+        return false;
+    }
+
+    if (length > LORA_MAX_PACKET_SIZE) {
+        LOGE(TAG, "Packet too large: %d bytes (max %d)", length, LORA_MAX_PACKET_SIZE);
+        return false;
+    }
+
+    LOGD(TAG, "Transmitting %d bytes...", length);
+
+    int state = radio_->transmit(const_cast<uint8_t*>(data), length);
+
+    if (state == RADIOLIB_ERR_NONE) {
+        LOGI(TAG, "Transmission successful");
+        return true;
+    } else {
+        LOGE(TAG, "Transmission failed, code: %d", state);
+        return false;
+    }
 }

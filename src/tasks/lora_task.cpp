@@ -6,6 +6,9 @@
 
 static const char* TAG = "LORA_TASK";
 
+#define BEACON_URL "https://placenet.local"
+#define BEACON_INTERVAL_MS 10000
+
 void loraTask(void* pvParameters) {
     LoRaModule* lora = static_cast<LoRaModule*>(pvParameters);
 
@@ -15,37 +18,30 @@ void loraTask(void* pvParameters) {
         return;
     }
 
-    // Initialize LoRa radio
+    LOGI(TAG, "LoRa task starting...");
+
     if (!lora->init()) {
         LOGE(TAG, "LoRa initialization failed, task exiting");
         vTaskDelete(nullptr);
         return;
     }
 
-    LOGI(TAG, "LoRa task started");
+    LOGI(TAG, "LoRa task started - Broadcasting URL every %d ms", BEACON_INTERVAL_MS);
 
-    LoRaPacket txPacket;
-    QueueHandle_t txQueue = lora->getTxQueue();
+    const char* beaconUrl = BEACON_URL;
+    uint8_t beaconLength = strlen(beaconUrl);
+    uint32_t beaconCount = 0;
 
     while (1) {
-        // TODO: Implement LoRa TX/RX logic
+        beaconCount++;
+        LOGI(TAG, "Beacon #%lu: Transmitting URL (%d bytes)", beaconCount, beaconLength);
 
-        // Example TX logic:
-        // if (xQueueReceive(txQueue, &txPacket, pdMS_TO_TICKS(100)) == pdTRUE) {
-        //     LOGI(TAG, "Transmitting packet (%d bytes)", txPacket.length);
-        //     // radio->transmit(txPacket.data, txPacket.length);
-        // }
+        if (lora->transmit((const uint8_t*)beaconUrl, beaconLength)) {
+            LOGI(TAG, "Beacon transmitted successfully");
+        } else {
+            LOGW(TAG, "Beacon transmission failed, will retry on next cycle");
+        }
 
-        // Example RX logic:
-        // if (radio->available()) {
-        //     LoRaPacket rxPacket;
-        //     rxPacket.length = radio->receive(rxPacket.data, LORA_MAX_PACKET_SIZE);
-        //     rxPacket.rssi = radio->getRSSI();
-        //     rxPacket.snr = radio->getSNR();
-        //     xQueueSend(lora->getRxQueue(), &rxPacket, 0);
-        // }
-
-        LOGW(TAG, "LoRa task running (STUB - not implemented)");
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(BEACON_INTERVAL_MS));
     }
 }

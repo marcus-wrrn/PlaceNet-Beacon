@@ -18,6 +18,9 @@
 #include "tasks/display_task.h"
 #endif
 
+#include "LoRaModule.h"
+#include "tasks/lora_task.h"
+
 static const char *TAG = "MAIN";
 
 // Global module pointers (managed by setup)
@@ -28,6 +31,8 @@ static PMUModule* g_pmu = nullptr;
 #ifdef DISPLAY_MODEL
 static DisplayModule* g_display = nullptr;
 #endif
+
+static LoRaModule* g_lora = nullptr;
 
 void setup() {
     Serial.begin(115200);
@@ -84,6 +89,11 @@ void setup() {
     }
 #endif
 
+    g_lora = new LoRaModule();
+    if (!g_lora) {
+        LOGE(TAG, "Failed to create LoRaModule");
+    }
+
     LOGI(TAG, "Spawning FreeRTOS tasks...");
 
 #ifdef HAS_PMU
@@ -127,6 +137,24 @@ void setup() {
         }
     }
 #endif
+
+    if (g_lora) {
+        BaseType_t result = xTaskCreatePinnedToCore(
+            loraTask,                       // Task function
+            "LoRa",                         // Task name
+            8192,                           // Stack size (bytes)
+            g_lora,                         // Task parameter (LoRaModule*)
+            8,                              // Priority (high)
+            nullptr,                        // Task handle (not needed)
+            1                               // Core 1
+        );
+
+        if (result == pdPASS) {
+            LOGI(TAG, "LoRa task created on core 1 (priority 8)");
+        } else {
+            LOGE(TAG, "Failed to create LoRa task");
+        }
+    }
 
     LOGI(TAG, "===========================================");
     LOGI(TAG, "All tasks spawned - entering main loop");

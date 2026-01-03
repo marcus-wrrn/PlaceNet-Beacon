@@ -94,7 +94,7 @@
 // Radio Type String
 #if defined(USING_SX1262)
 #define RADIO_TYPE_STR              "SX1262"
-#define CONFIG_RADIO_FREQ           850.0
+#define CONFIG_RADIO_FREQ           910.1
 #define CONFIG_RADIO_OUTPUT_POWER   22
 #define CONFIG_RADIO_BW             125.0
 
@@ -104,3 +104,6 @@
 #define CONFIG_RADIO_OUTPUT_POWER   22
 #define CONFIG_RADIO_BW             125.0
 #endif
+
+#define LORA_TX_QUEUE_LEN 10
+#define LORA_RX_QUEUE_LEN 10

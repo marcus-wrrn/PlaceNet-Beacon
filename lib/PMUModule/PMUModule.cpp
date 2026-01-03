@@ -295,7 +295,6 @@ bool PMUModule::initialize() {
     }
     LOGI(TAG, "PowerKeyPressOffTime: %s", timeout_str);
 
-    // Attach interrupt
     pinMode(irqPin_, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(irqPin_), pmuInterruptHandler, FALLING);
 
@@ -317,7 +316,6 @@ void PMUModule::disablePeripherals() {
     pmu_->disableBattDetection();
 
     if (pmu_->getChipModel() == XPOWERS_AXP2101) {
-        // Disable all PMU interrupts
         pmu_->disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
         pmu_->clearIrqStatus();
 
