@@ -6,6 +6,7 @@
 
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
+#include "DisplayEvents.h"
 #endif
 
 static const char* TAG = "LORA_TASK";
@@ -17,40 +18,6 @@ static const char* TAG = "LORA_TASK";
 #endif
 
 #ifdef LORA_MODE_RECEIVER
-
-#ifdef DISPLAY_MODEL
-void displayReceivedPacket(DisplayModule* display, LoRaPacket* packet) {
-    if (!display || !packet) {
-        return;
-    }
-
-    char buffer[64];
-    display->clear();
-
-    display->drawText("RX PACKET:", 0, 12);
-
-    memset(buffer, 0, sizeof(buffer));
-    uint8_t displayLen = (packet->length < 20) ? packet->length : 20;
-    memcpy(buffer, packet->data, displayLen);
-    buffer[displayLen] = '\0';
-
-    for (uint8_t i = 0; i < displayLen; i++) {
-        if (buffer[i] < 32 || buffer[i] > 126) {
-            buffer[i] = '.';
-        }
-    }
-
-    display->drawText(buffer, 0, 28);
-
-    snprintf(buffer, sizeof(buffer), "RSSI:%ddBm", packet->rssi);
-    display->drawText(buffer, 0, 44);
-
-    snprintf(buffer, sizeof(buffer), "SNR:%.1fdB Len:%d", packet->snr, packet->length);
-    display->drawText(buffer, 0, 60);
-
-    display->sendBuffer();
-}
-#endif
 #endif
 
 void loraTask(void* pvParameters) {
@@ -89,7 +56,8 @@ void loraTask(void* pvParameters) {
         beaconCount++;
         LOGI(TAG, "Beacon #%lu: Transmitting URL (%d bytes)", beaconCount, beaconLength);
 
-        if (lora->transmit((const uint8_t*)beaconUrl, beaconLength)) {
+        bool success = lora->transmit((const uint8_t*)beaconUrl, beaconLength);
+        if (success) {
             LOGI(TAG, "Beacon transmitted successfully");
         } else {
             LOGW(TAG, "Beacon transmission failed, will retry on next cycle");
@@ -108,6 +76,18 @@ void loraTask(void* pvParameters) {
             Serial.println("==============================");
 
             lastDutyCycleReport = currentTime;
+
+#ifdef DISPLAY_MODEL
+            if (display) {
+                DisplayEvent evt = createLoRaTxEvent(
+                    success,
+                    beaconCount,
+                    dutyCycle1m,
+                    dutyCycle10m
+                );
+                sendDisplayEvent(display->getEventQueue(), evt);
+            }
+#endif
         }
 
         vTaskDelay(pdMS_TO_TICKS(BEACON_INTERVAL_MS));
@@ -148,7 +128,14 @@ void loraTask(void* pvParameters) {
 
 #ifdef DISPLAY_MODEL
             if (display) {
-                displayReceivedPacket(display, &packet);
+                DisplayEvent evt = createLoRaRxEvent(
+                    packet.rssi,
+                    packet.snr,
+                    packet.data,
+                    packet.length,
+                    packetCount
+                );
+                sendDisplayEvent(display->getEventQueue(), evt);
             }
 #endif
         }

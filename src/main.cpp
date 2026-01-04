@@ -15,6 +15,7 @@
 
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
+#include "DisplayEvents.h"
 #include "tasks/display_task.h"
 #endif
 
@@ -93,6 +94,14 @@ void setup() {
     g_display = new DisplayModule();
     if (!g_display) {
         LOGE(TAG, "Failed to create DisplayModule");
+    } else {
+        if (!g_display->init()) {
+            LOGE(TAG, "Failed to initialize display hardware");
+            delete g_display;
+            g_display = nullptr;
+        } else {
+            LOGI(TAG, "Display hardware initialized successfully");
+        }
     }
 #endif
 
@@ -175,41 +184,23 @@ void setup() {
 }
 
 void loop() {
-
-#ifdef DISPLAY_MODEL
-    static uint32_t lastUpdate = 0;
-    uint32_t currentTime = millis();
-
-    if (currentTime - lastUpdate > 100) {
-        lastUpdate = currentTime;
-
-        if (g_display) {
-            char buffer[64];
-            g_display->clear();
-
-            unsigned long uptimeSeconds = currentTime / 1000;
-            unsigned long uptimeMinutes = uptimeSeconds / 60;
-            unsigned long uptimeHours = uptimeMinutes / 60;
-
-            if (uptimeHours > 0 && uptimeHours % 1 == 0) {
-                snprintf(buffer, sizeof(buffer), "Uptime: %luh", uptimeHours);
-            } else if (uptimeMinutes > 0 && uptimeMinutes % 1 == 0) {
-                snprintf(buffer, sizeof(buffer), "Uptime: %lum", uptimeMinutes);
-            } else {
-                snprintf(buffer, sizeof(buffer), "Uptime: %lus", uptimeSeconds);
-            }
-
-            g_display->drawText(buffer, 0, 16);
-
 #ifdef HAS_PMU
-            if (g_pmu) {
-                snprintf(buffer, sizeof(buffer), "Batt: %dmV", g_pmu->getBatteryVoltage());
-                g_display->drawText(buffer, 0, 32);
-            }
-#endif
-            g_display->sendBuffer();
+    if (g_pmu && g_display) {
+        static uint32_t lastBatteryUpdate = 0;
+        uint32_t currentTime = millis();
+
+        if (currentTime - lastBatteryUpdate >= 5000) {
+            lastBatteryUpdate = currentTime;
+
+            DisplayEvent evt = createBatteryEvent(
+                g_pmu->getBatteryVoltage(),
+                g_pmu->isCharging(),
+                g_pmu->hasBattery()
+            );
+            sendDisplayEvent(g_display->getEventQueue(), evt);
         }
     }
 #endif
+
     vTaskDelay(pdMS_TO_TICKS(100));
 }
