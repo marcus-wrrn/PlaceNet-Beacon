@@ -184,6 +184,6 @@ void loop() {
         }
     }
 #endif
-    LOGI(TAG, "Main loop running - %lu seconds uptime", millis() / 1000);
+    //LOGI(TAG, "Main loop running - %lu seconds uptime", millis() / 1000);
     vTaskDelay(pdMS_TO_TICKS(100));
 }

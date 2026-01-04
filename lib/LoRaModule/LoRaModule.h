@@ -96,7 +96,21 @@ public:
      */
     LoRaMode getMode() const { return mode_; }
 
+    /**
+     * @brief Get duty cycle percentage over specified window
+     * @param windowMs Time window in milliseconds (default: 3600000 = 1 hour)
+     * @return Duty cycle as percentage (0.0 - 100.0)
+     */
+    float getDutyCycle(uint32_t windowMs = 3600000);
+
 private:
+    struct TransmissionRecord {
+        uint32_t timestamp;
+        uint32_t timeOnAir;
+    };
+
+    static const uint8_t MAX_TX_RECORDS = 100;
+
     SX1262* radio_;
 
     QueueHandle_t txQueue_;
@@ -110,4 +124,10 @@ private:
     uint8_t codingRate_;
     int8_t txPower_;
     uint8_t syncWord_;
+
+    TransmissionRecord txRecords_[MAX_TX_RECORDS];
+    uint8_t txRecordIndex_;
+    uint8_t txRecordCount_;
+
+    void recordTransmission(uint32_t timeOnAir);
 };

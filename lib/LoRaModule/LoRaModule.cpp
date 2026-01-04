@@ -14,7 +14,9 @@ LoRaModule::LoRaModule()
       spreadingFactor_(10),
       codingRate_(7),
       txPower_(CONFIG_RADIO_OUTPUT_POWER),
-      syncWord_(0x12)
+      syncWord_(0x12),
+      txRecordIndex_(0),
+      txRecordCount_(0)
 {
     txQueue_ = xQueueCreate(LORA_TX_QUEUE_LEN, sizeof(LoRaPacket));
     rxQueue_ = xQueueCreate(LORA_RX_QUEUE_LEN, sizeof(LoRaPacket));
@@ -22,6 +24,8 @@ LoRaModule::LoRaModule()
     if (!txQueue_ || !rxQueue_) {
         LOGE(TAG, "Failed to create LoRa queues");
     }
+
+    memset(txRecords_, 0, sizeof(txRecords_));
 }
 
 LoRaModule::~LoRaModule() {
@@ -125,15 +129,55 @@ bool LoRaModule::transmit(const uint8_t* data, uint8_t length) {
         return false;
     }
 
-    LOGD(TAG, "Transmitting %d bytes...", length);
+    uint32_t timeOnAirUs = radio_->getTimeOnAir(length);
+    uint32_t timeOnAirMs = (timeOnAirUs + 500) / 1000;
+    LOGD(TAG, "Transmitting %d bytes (ToA: %lu ms)...", length, timeOnAirMs);
 
     int state = radio_->transmit(const_cast<uint8_t*>(data), length);
 
     if (state == RADIOLIB_ERR_NONE) {
+        recordTransmission(timeOnAirMs);
         LOGI(TAG, "Transmission successful");
         return true;
     } else {
         LOGE(TAG, "Transmission failed, code: %d", state);
         return false;
     }
+}
+
+void LoRaModule::recordTransmission(uint32_t timeOnAir) {
+    txRecords_[txRecordIndex_].timestamp = millis();
+    txRecords_[txRecordIndex_].timeOnAir = timeOnAir;
+
+    txRecordIndex_ = (txRecordIndex_ + 1) % MAX_TX_RECORDS;
+
+    if (txRecordCount_ < MAX_TX_RECORDS) {
+        txRecordCount_++;
+    }
+}
+
+float LoRaModule::getDutyCycle(uint32_t windowMs) {
+    if (txRecordCount_ == 0) {
+        return 0.0f;
+    }
+
+    uint32_t currentTime = millis();
+    uint32_t totalToA = 0;
+    uint8_t validRecords = 0;
+
+    for (uint8_t i = 0; i < txRecordCount_; i++) {
+        uint32_t age = currentTime - txRecords_[i].timestamp;
+
+        if (age <= windowMs) {
+            totalToA += txRecords_[i].timeOnAir;
+            validRecords++;
+        }
+    }
+
+    if (validRecords == 0) {
+        return 0.0f;
+    }
+
+    float dutyCycle = (float)totalToA / (float)windowMs * 100.0f;
+    return dutyCycle;
 }

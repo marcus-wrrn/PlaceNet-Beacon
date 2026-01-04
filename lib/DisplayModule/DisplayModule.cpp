@@ -74,39 +74,39 @@ void DisplayModule::renderCommand(const DisplayCommand& cmd) {
     switch (cmd.type) {
         case DISPLAY_CLEAR:
             u8g2_->clearBuffer();
-            LOGD(TAG, "Clear buffer");
+            //LOGD(TAG, "Clear buffer");
             break;
 
         case DISPLAY_DRAW_TEXT:
             u8g2_->drawStr(cmd.data.drawText.x, cmd.data.drawText.y, cmd.data.drawText.text);
-            LOGD(TAG, "Draw text at (%d, %d): %s",
-                     cmd.data.drawText.x, cmd.data.drawText.y, cmd.data.drawText.text);
+            // LOGD(TAG, "Draw text at (%d, %d): %s",
+            //          cmd.data.drawText.x, cmd.data.drawText.y, cmd.data.drawText.text);
             break;
 
         case DISPLAY_DRAW_HLINE:
             u8g2_->drawHLine(cmd.data.drawHLine.x, cmd.data.drawHLine.y, cmd.data.drawHLine.width);
-            LOGD(TAG, "Draw H-line at (%d, %d) width %d",
-                     cmd.data.drawHLine.x, cmd.data.drawHLine.y, cmd.data.drawHLine.width);
+            // LOGD(TAG, "Draw H-line at (%d, %d) width %d",
+            //          cmd.data.drawHLine.x, cmd.data.drawHLine.y, cmd.data.drawHLine.width);
             break;
 
         case DISPLAY_DRAW_VLINE:
             u8g2_->drawVLine(cmd.data.drawVLine.x, cmd.data.drawVLine.y, cmd.data.drawVLine.height);
-            LOGD(TAG, "Draw V-line at (%d, %d) height %d",
-                     cmd.data.drawVLine.x, cmd.data.drawVLine.y, cmd.data.drawVLine.height);
+            // LOGD(TAG, "Draw V-line at (%d, %d) height %d",
+            //          cmd.data.drawVLine.x, cmd.data.drawVLine.y, cmd.data.drawVLine.height);
             break;
 
         case DISPLAY_SEND_BUFFER:
             u8g2_->sendBuffer();
-            LOGD(TAG, "Send buffer to display");
+            // LOGD(TAG, "Send buffer to display");
             break;
 
         case DISPLAY_SET_FONT:
             u8g2_->setFont(cmd.data.setFont.font);
-            LOGD(TAG, "Set font");
+            // LOGD(TAG, "Set font");
             break;
 
         default:
-            LOGW(TAG, "Unknown display command type: %d", cmd.type);
+            // LOGW(TAG, "Unknown display command type: %d", cmd.type);
             break;
     }
 }
