@@ -7,13 +7,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-/**
- * @file LoRaModule.h
- * @brief LoRa radio module for FreeRTOS-based communication
- *
- * TODO: Implementation required - this is a skeleton design
- */
-
 // Maximum packet size
 #define LORA_MAX_PACKET_SIZE 255
 

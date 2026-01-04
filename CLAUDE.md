@@ -2,12 +2,32 @@
 
 ## Overview
 
-PlaceNet-Beacon is an ESP32-based LoRa beacon/tracker firmware designed for the **LilyGo T-Beam S3 Supreme** development board. It provides a foundation for building location-aware, long-range wireless communication devices suitable for IoT tracking, mesh networking, or beacon applications.
+PlaceNet-Beacon is an ESP32-based LoRa beacon/tracker firmware designed for **LilyGo ESP32-S3 development boards**. It provides a foundation for building location-aware, long-range wireless communication devices suitable for IoT tracking, mesh networking, or beacon applications.
 
-**Hardware Platform**: ESP32-S3 (dual-core, 240MHz, 8MB Flash, 8MB PSRAM)
+**Hardware Platform**: ESP32-S3 (dual-core, 240MHz)
 **Build System**: PlatformIO with Arduino framework
 **Architecture**: FreeRTOS task-based with modular hardware abstraction
-**Primary Use Case**: GPS-enabled LoRa beacon with PMU
+**Primary Use Case**: GPS-enabled LoRa beacon
+
+## Supported Boards
+
+### LilyGo T-Beam S3 Supreme
+- **Flash**: 8MB, **PSRAM**: 8MB
+- **Display**: I2C SH1106 OLED (128x64)
+- **PMU**: AXP2101/AXP192 (battery management)
+- **LoRa**: SX1262 or LR1121
+- **GPS**: L76K/UBlox with power control
+- **Product**: https://lilygo.cc/products/t-beam-supreme
+
+### LilyGo T-Deck
+- **Flash**: 16MB, **PSRAM**: 8MB
+- **Display**: ST7789 SPI LCD (320x240) - **not yet implemented**
+- **PMU**: None (direct battery with ADC monitoring)
+- **LoRa**: SX1262
+- **GPS**: Optional UART
+- **Unique Features**: Physical keyboard (I2C), trackball, speaker/microphone
+- **Product**: https://lilygo.cc/products/t-deck
+- **Note**: T-Deck requires GPIO10 HIGH to enable peripheral power
 
 ## Project Structure
 
@@ -16,8 +36,9 @@ PlaceNet-Beacon/
 ├── lib/                          # Custom libraries (hardware modules)
 │   ├── PMUModule/                # Power management (non-singleton)
 │   ├── DisplayModule/            # Display rendering with queue
-│   ├── LoRaModule/               # LoRa radio (stub implementation)
+│   ├── LoRaModule/               # LoRa radio with RadioLib (SX1262/LR1121)
 │   ├── BoardUtility/             # Static board utilities
+│   ├── Logging/                  # Custom logging macros
 │   └── config/
 │       └── config.h              # Pin definitions & configuration
 ├── src/
@@ -25,9 +46,10 @@ PlaceNet-Beacon/
 │   └── tasks/                    # FreeRTOS task implementations
 │       ├── pmu_task.h/.cpp       # PMU event handling task
 │       ├── display_task.h/.cpp   # Display rendering task
-│       └── lora_task.h/.cpp      # LoRa TX/RX task (stub)
+│       └── lora_task.h/.cpp      # LoRa beacon transmission task
 ├── boards/
-│   └── t-beams3-supreme.json     # Custom PlatformIO board definition
+│   ├── t-beams3-supreme.json     # T-Beam S3 board definition
+│   └── t-deck.json               # T-Deck board definition
 ├── platformio.ini                # Build configuration
 └── CLAUDE.md                     # This file
 ```
@@ -41,28 +63,9 @@ PlaceNet-Beacon/
 - **Message Passing**: Inter-task communication via queues and task notifications
 - **Event-Driven**: PMU uses ISR → task notification (not polling)
 
-### FreeRTOS Task Architecture
-
-```
-┌─────────────┐     Task Notification      ┌──────────────┐
-│  PMU ISR    │ ─────────────────────────> │   PMU Task   │ (Priority: 24, Core 0)
-└─────────────┘                            └──────────────┘
-                                                   │
-                                                   │ Power Events
-                                                   ▼
-┌─────────────┐     Display Queue          ┌──────────────┐
-│  Main Loop  │ ─────────────────────────> │ Display Task │ (Priority: 5, Core 1)
-└─────────────┘                            └──────────────┘
-       │
-       │ Init, Coordination
-       ▼
-┌──────────────┐
-│  LoRa Task   │  (Future - stub only)
-└──────────────┘
-```
-
 **Task Priorities**:
 - PMU Task: `configMAX_PRIORITIES - 1` (highest, ~24) - Critical power events
+- LoRa Task: 8 (medium-high) - Beacon transmission, stack: 8192 bytes
 - Display Task: 5 (medium) - Non-critical UI updates
 - Main Loop: 10 (default Arduino loop priority)
 
@@ -116,23 +119,32 @@ xQueueSend(display->getCommandQueue(), &cmd, 0);
 ```cpp
 DisplayModule* display = new DisplayModule();
 xTaskCreatePinnedToCore(displayTask, "Display", 4096, display, 5, NULL, 1);
-// Display task calls display->init() and processes queue
 ```
 
-### 3. LoRaModule (`lib/LoRaModule/`) - STUB
+### 3. LoRaModule (`lib/LoRaModule/`)
 
-**Purpose**: LoRa radio TX/RX (SX1262/LR1121) - **Not yet implemented**
+**Purpose**: LoRa radio TX/RX with RadioLib (SX1262/LR1121)
 
-**Planned Features**:
-- TX/RX queues for packet handling
-- RadioLib integration
-- Configurable frequency, bandwidth, spreading factor
-- RSSI/SNR reporting
+**Features**:
+- RadioLib-based SX1262 driver integration
+- TX/RX queues (10 deep each) for packet handling
+- Blocking `transmit()` and queued `send()` methods
+- Duty cycle tracking with rolling time windows (1min, 10min, 1hour)
+- Configurable radio parameters (frequency, bandwidth, spreading factor, power)
+- Time-on-air calculation for regulatory compliance
 
-**TODO**:
-- Implement `init()` with RadioLib
-- Add packet transmission logic
-- Add receive interrupt handling
+**Duty Cycle Tracking**:
+Maintains circular buffer of last 100 transmissions with timestamps and time-on-air values. Enables regulatory compliance monitoring.
+
+**Usage**:
+```cpp
+LoRaModule* lora = new LoRaModule();
+xTaskCreatePinnedToCore(loraTask, "LoRa", 8192, lora, 8, NULL, 1);
+// Task calls lora->init() and lora->transmit() for beaconing
+```
+
+**Current Implementation**:
+The LoRa task (`src/tasks/lora_task.cpp`) transmits a beacon URL every 30 seconds using blocking `transmit()`. Duty cycle is reported every 60 seconds to Serial.
 
 ### 4. BoardUtility (`lib/BoardUtility/`)
 
@@ -150,54 +162,28 @@ BoardUtility::printChipInfo();
 BoardUtility::scanI2C(&Wire1);
 ```
 
-### 5. Logging
+### 5. Logging (`lib/Logging/logger.h`)
 
-**Uses ESP-IDF native logging** (thread-safe by default):
-- `ESP_LOGI(TAG, "message")` - Info level
-- `ESP_LOGW(TAG, "message")` - Warning
-- `ESP_LOGE(TAG, "message")` - Error
-- `ESP_LOGD(TAG, "message")` - Debug
-- `ESP_LOGV(TAG, "message")` - Verbose
+**Purpose**: Unified logging interface with timestamps
 
-**Tag Convention**: `static const char* TAG = "MODULE_NAME";`
+**Custom Logging Macros** (Serial.printf-based):
+- `LOGI(tag, format, ...)` - Info level with timestamp
+- `LOGW(tag, format, ...)` - Warning level
+- `LOGE(tag, format, ...)` - Error level
+- `LOGD(tag, format, ...)` - Debug level
+- `LOGV(tag, format, ...)` - Verbose level
 
 ### 6. Configuration (`lib/config/config.h`)
 
-**Purpose**: Centralized hardware pin definitions and feature flags
+**Purpose**: Centralized hardware pin definitions, feature flags, and radio parameters
 
-**Key Definitions**:
-- I2C buses: `I2C_SDA`, `I2C_SCL`, `I2C1_SDA`, `I2C1_SCL`
-- SPI pins: `RADIO_SCLK_PIN`, `RADIO_MISO_PIN`, `RADIO_MOSI_PIN`, `RADIO_CS_PIN`
-- PMU: `PMU_IRQ`, `PMU_WIRE_PORT`
-- GPS: `GPS_RX_PIN`, `GPS_TX_PIN`, `GPS_EN_PIN`
-- Display: `DISPLAY_ADDR`, `DISPLAY_MODEL`
-
-## Initialization Flow
-
-```
-setup() {
-  1. Serial.begin(115200)
-  2. BoardUtility::printChipInfo()
-  3. Wire1.begin() - PMU I2C bus
-  4. PMUModule::initialize() ⚠️ CRITICAL - Powers all peripherals
-  5. Wire.begin() - Display I2C bus (now powered)
-  6. SPI.begin() - Radio SPI bus
-  7. Create module instances (DisplayModule, etc.)
-  8. xTaskCreatePinnedToCore(...) - Spawn FreeRTOS tasks
-  9. Enter loop()
-}
-
-loop() {
-  - Send display updates via queue
-  - Read sensor data
-  - Trigger LoRa TX
-  - vTaskDelay() - Yield to tasks
-}
-```
+See `lib/config/config.h` for board-specific pin assignments.
 
 ## Hardware Resources & Dependencies
 
-### I2C Buses
+### T-Beam S3 Supreme Hardware
+
+#### I2C Buses
 
 **Wire (I2C0)** - Pins: SDA=17, SCL=18
 - Display (SH1106 @ 0x3C)
@@ -206,14 +192,14 @@ loop() {
 - PMU (AXP2101/AXP192 @ 0x34)
 - PMU_IRQ on GPIO40
 
-### SPI Buses
+#### SPI Buses
 
 **SPI (HSPI)** - Radio
 - Pins: MOSI=11, MISO=13, SCLK=12, CS=10
 - Additional: RST=5, DIO1=1, BUSY=4
 - Devices: LoRa Radio (SX1262/LR1121)
 
-### UART
+#### UART
 
 **Serial1** - GPS Module
 - Pins: RX=9, TX=8
@@ -221,7 +207,7 @@ loop() {
 - Baud: 9600
 - Devices: L76K or UBlox GPS
 
-### Critical Dependencies
+#### Critical Dependencies
 
 **PMU MUST initialize first** - It powers:
 - GPS (ALDO4: 3.3V)
@@ -230,12 +216,38 @@ loop() {
 - SD Card (BLDO1/2: 3.3V)
 - Display I2C bus
 
-## Task Communication
+### T-Deck Hardware
 
-### Queues
-- **Display Queue**: `DisplayCommand` structs (10 deep)
-- **LoRa TX Queue**: `LoRaPacket` structs (10 deep) - Future
-- **LoRa RX Queue**: `LoRaPacket` structs (10 deep) - Future
+#### I2C Bus
+
+**Wire (I2C0)** - Pins: SDA=18, SCL=8
+- Keyboard controller (interrupt on GPIO46)
+
+#### SPI Bus (Shared)
+
+**SPI** - Pins: MOSI=41, MISO=38, SCLK=40
+- LoRa Radio: CS=9, RST=17, DIO1=45, BUSY=13
+- SD Card: CS=39
+- Display (not implemented): CS=12, DC=11, BL=42
+
+#### UART
+
+**GPS Module** (Optional)
+- Pins: RX=44, TX=43
+- Baud: 9600
+
+#### Power Control
+
+**CRITICAL**: GPIO10 must be set HIGH before peripheral initialization
+- Controls power to LoRa, SD card, and other peripherals
+- Implemented in `src/main.cpp` via `BOARD_POWERON_PIN`
+
+#### Battery Monitoring
+
+- ADC Pin: GPIO4
+- Direct battery voltage sensing (no PMU)
+
+## Task Communication
 
 ### Task Notifications
 - **PMU Task**: Woken by ISR via `vTaskNotifyGiveFromISR()`
@@ -259,7 +271,7 @@ loop() {
 
 - Use queues for inter-task communication
 - Use task notifications for ISR → task signaling
-- Use `ESP_LOG*()` for thread-safe logging
+- Use `LOG*()` macros for consistent logging (thread-safe Serial.printf)
 - Avoid shared state; prefer message passing
 
 ### Power Management
@@ -268,13 +280,48 @@ loop() {
 - Call `pmu->disablePeripherals()` before deep sleep
 - Use `esp_sleep_enable_*()` for wakeup sources
 
+## Dependencies
+
+**PlatformIO Libraries** (`platformio.ini`):
+- `jgromes/RadioLib@^7.4.0` - LoRa/FSK radio abstraction (SX1262, LR1121, etc.) - **all boards**
+- `olikraus/U8g2@^2.36.15` - Monochrome OLED/LCD graphics library - **T-Beam only**
+- `lewisxhe/XPowersLib@^0.3.2` - AXP192/AXP2101 PMU driver - **T-Beam only**
+
+**Platform**:
+- `espressif32@6.9.0` - ESP32 Arduino framework
+- Partition scheme: `huge_app.csv` (large application partition for PSRAM usage)
+
+**Board Definitions**:
+- `boards/t-beams3-supreme.json` - T-Beam S3 (8MB Flash, 8MB PSRAM)
+- `boards/t-deck.json` - T-Deck (16MB Flash, 8MB PSRAM)
+
+**PlatformIO Environments**:
+- `T_BEAM_S3_SUPREME_SX1262` - T-Beam with SX1262 radio
+- `T_BEAM_S3_SUPREME_LR1121` - T-Beam with LR1121 radio (future)
+- `T_DECK_SX1262` - T-Deck with SX1262 radio
+
+**Build Flags**:
+- `ARDUINO_USB_CDC_ON_BOOT=1` - Enable USB CDC for Serial communication
+- `BOARD_HAS_PSRAM` - Enable PSRAM support (8MB)
+- Board variant flag (e.g., `T_BEAM_S3_SUPREME_SX1262` or `T_DECK_SX1262`)
+
 ## Future Extensions
 
-- GPS Task with NMEA parsing (TinyGPS++)
-- LoRa Task full implementation (RadioLib)
+**General**:
+- GPS Task with NMEA parsing (TinyGPS++) and position beaconing
+- LoRa RX implementation with interrupt-driven packet reception
+- LoRa mesh networking (packet routing, hop count, RSSI-based path selection)
 - SD Logging Task with async writes
 - Event Groups for system state (GPS_LOCKED, LORA_READY)
-- Deep sleep coordination
+- Deep sleep coordination with periodic wakeup for beaconing
+- BLE configuration interface (radio parameters, beacon interval, GPS enable)
+
+**T-Deck Specific**:
+- ST7789 SPI display driver integration (TFT_eSPI or Arduino_GFX)
+- Keyboard module for I2C input handling
+- Trackball GPIO reading for navigation
+- Battery ADC monitoring task
+- Audio support (speaker/microphone via ES7210 I2S codec)
 
 ## Dev Notes
 

@@ -46,6 +46,13 @@ void setup() {
     BoardUtility::printChipInfo();
     BoardUtility::printWakeupReason();
 
+#ifdef BOARD_POWERON_PIN
+    pinMode(BOARD_POWERON_PIN, OUTPUT);
+    digitalWrite(BOARD_POWERON_PIN, HIGH);
+    LOGI(TAG, "Peripheral power enabled (GPIO %d)", BOARD_POWERON_PIN);
+    delay(100);
+#endif
+
 #ifdef I2C1_SDA
     Wire1.begin(I2C1_SDA, I2C1_SCL);
     LOGI(TAG, "Scan Wire1 (I2C1)...");
