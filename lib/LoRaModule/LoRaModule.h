@@ -65,6 +65,20 @@ public:
     bool transmit(const uint8_t* data, uint8_t length);
 
     /**
+     * @brief Start continuous receive mode
+     * @return true if receive mode started successfully
+     */
+    bool startListening();
+
+    /**
+     * @brief Check for and retrieve received packet (blocking with timeout)
+     * @param packet Pointer to LoRaPacket struct to fill with received data
+     * @param timeoutMs Timeout in milliseconds (default: 100ms)
+     * @return true if packet was received
+     */
+    bool receive(LoRaPacket* packet, uint32_t timeoutMs = 100);
+
+    /**
      * @brief Set radio mode
      * @param mode LoRa mode (IDLE, TX, RX, SLEEP)
      * @return true if mode set successfully

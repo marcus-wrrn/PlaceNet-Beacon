@@ -146,14 +146,20 @@ void setup() {
 #endif
 
     if (g_lora) {
+        static LoRaTaskParams loraParams;
+        loraParams.lora = g_lora;
+#ifdef DISPLAY_MODEL
+        loraParams.display = g_display;
+#endif
+
         BaseType_t result = xTaskCreatePinnedToCore(
-            loraTask,                       
-            "LoRa",                         
-            8192,                           
-            g_lora,                         
-            8,                             
-            nullptr,                        
-            1                               
+            loraTask,
+            "LoRa",
+            8192,
+            &loraParams,
+            8,
+            nullptr,
+            1
         );
 
         if (result == pdPASS) {
@@ -172,13 +178,27 @@ void loop() {
 
 #ifdef DISPLAY_MODEL
     static uint32_t lastUpdate = 0;
-    if (millis() - lastUpdate > 100) {
-        lastUpdate = millis();
+    uint32_t currentTime = millis();
+
+    if (currentTime - lastUpdate > 100) {
+        lastUpdate = currentTime;
 
         if (g_display) {
             char buffer[64];
             g_display->clear();
-            snprintf(buffer, sizeof(buffer), "Uptime: %lus", millis() / 1000);
+
+            unsigned long uptimeSeconds = currentTime / 1000;
+            unsigned long uptimeMinutes = uptimeSeconds / 60;
+            unsigned long uptimeHours = uptimeMinutes / 60;
+
+            if (uptimeHours > 0 && uptimeHours % 1 == 0) {
+                snprintf(buffer, sizeof(buffer), "Uptime: %luh", uptimeHours);
+            } else if (uptimeMinutes > 0 && uptimeMinutes % 1 == 0) {
+                snprintf(buffer, sizeof(buffer), "Uptime: %lum", uptimeMinutes);
+            } else {
+                snprintf(buffer, sizeof(buffer), "Uptime: %lus", uptimeSeconds);
+            }
+
             g_display->drawText(buffer, 0, 16);
 
 #ifdef HAS_PMU
@@ -191,6 +211,5 @@ void loop() {
         }
     }
 #endif
-    //LOGI(TAG, "Main loop running - %lu seconds uptime", millis() / 1000);
     vTaskDelay(pdMS_TO_TICKS(100));
 }

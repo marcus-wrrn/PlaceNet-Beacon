@@ -145,6 +145,58 @@ bool LoRaModule::transmit(const uint8_t* data, uint8_t length) {
     }
 }
 
+bool LoRaModule::startListening() {
+    if (!initialized_) {
+        LOGW(TAG, "Cannot start listening - LoRa not initialized");
+        return false;
+    }
+
+    if (!radio_) {
+        LOGE(TAG, "Radio instance is null");
+        return false;
+    }
+
+    LOGI(TAG, "Starting continuous receive mode...");
+    int state = radio_->startReceive();
+
+    if (state == RADIOLIB_ERR_NONE) {
+        mode_ = LORA_MODE_RX;
+        LOGI(TAG, "Receive mode started successfully");
+        return true;
+    } else {
+        LOGE(TAG, "Failed to start receive mode, code: %d", state);
+        return false;
+    }
+}
+
+bool LoRaModule::receive(LoRaPacket* packet, uint32_t timeoutMs) {
+    if (!initialized_ || !radio_ || !packet) {
+        return false;
+    }
+
+    int state = radio_->receive(packet->data, LORA_MAX_PACKET_SIZE, timeoutMs * 1000);
+
+    if (state == RADIOLIB_ERR_NONE) {
+        packet->length = radio_->getPacketLength();
+        packet->rssi = radio_->getRSSI();
+        packet->snr = radio_->getSNR();
+
+        LOGI(TAG, "Packet received: %d bytes, RSSI: %d dBm, SNR: %.2f dB",
+             packet->length, packet->rssi, packet->snr);
+
+        mode_ = LORA_MODE_RX;
+        return true;
+    } else if (state == RADIOLIB_ERR_RX_TIMEOUT) {
+        return false;
+    } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+        LOGD(TAG, "CRC mismatch, ignoring packet");
+        return false;
+    } else {
+        LOGW(TAG, "Receive error, code: %d", state);
+        return false;
+    }
+}
+
 void LoRaModule::recordTransmission(uint32_t timeOnAir) {
     txRecords_[txRecordIndex_].timestamp = millis();
     txRecords_[txRecordIndex_].timeOnAir = timeOnAir;
