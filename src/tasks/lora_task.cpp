@@ -2,13 +2,11 @@
 #include "LoRaModule.h"
 #include "logger.h"
 #include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
-#ifdef DISPLAY_MODEL
-#include "DisplayEvents.h"
-#endif
+#include <freertos/task.h> 
 
 static const char* TAG = "LORA_TASK";
+
+QueueHandle_t loraUpdateQueue = nullptr;
 
 #ifdef LORA_MODE_BEACON
 #define BEACON_URL "https://placenet.local"
@@ -21,7 +19,7 @@ static const char* TAG = "LORA_TASK";
 
 void loraTask(void* pvParameters) {
     LoRaTaskParams* params = static_cast<LoRaTaskParams*>(pvParameters);
-
+    
     if (!params || !params->lora) {
         LOGE(TAG, "LoRa task parameters invalid, task exiting");
         vTaskDelete(nullptr);
@@ -29,10 +27,6 @@ void loraTask(void* pvParameters) {
     }
 
     LoRaModule* lora = params->lora;
-
-#ifdef DISPLAY_MODEL
-    QueueHandle_t displayQueue = params->displayEventQueue;
-#endif
 
     LOGI(TAG, "LoRa task starting...");
 
@@ -94,6 +88,13 @@ void loraTask(void* pvParameters) {
 
 #elif defined(LORA_MODE_RECEIVER)
     LOGI(TAG, "LoRa task started - Receiver mode");
+
+    if (!lora->startListening()) {
+        LOGE(TAG, "Failed to start listening mode, task exiting");
+        vTaskDelete(nullptr);
+        return;
+    }
+
     LOGI(TAG, "Listening for LoRa packets...");
 
     LoRaPacket packet;
@@ -125,18 +126,16 @@ void loraTask(void* pvParameters) {
             Serial.println();
             LOGI(TAG, "===========================");
 
-#ifdef DISPLAY_MODEL
-            if (displayQueue) {
-                DisplayEvent evt = createLoRaRxEvent(
-                    packet.rssi,
-                    packet.snr,
-                    packet.data,
-                    packet.length,
-                    packetCount
-                );
-                sendDisplayEvent(displayQueue, evt);
+            if (loraUpdateQueue != nullptr) {
+                BaseType_t result = xQueueSend(loraUpdateQueue, &packet, portMAX_DELAY);
+                if (result == pdPASS) {
+                    LOGI(TAG, "Packet queued successfully to loraUpdateQueue");
+                } else {
+                    LOGE(TAG, "Failed to queue packet to loraUpdateQueue");
+                }
+            } else {
+                LOGE(TAG, "loraUpdateQueue is null! Cannot send packet to main task");
             }
-#endif
         }
     }
 

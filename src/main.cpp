@@ -15,7 +15,6 @@
 
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
-#include "DisplayEvents.h"
 #endif
 
 #include "LoRaModule.h"
@@ -33,6 +32,48 @@ static DisplayModule display;
 #endif
 
 static LoRaModule* g_lora = nullptr;
+static int pktCount = 0;
+
+void mainTask(void* pvParameters) {
+    const char* TASK_TAG = "MAIN_TASK";
+
+    LOGI(TASK_TAG, "Main task starting...");
+
+    if (loraUpdateQueue == nullptr) {
+        LOGE(TASK_TAG, "ERROR: loraUpdateQueue is NULL!");
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    LOGI(TASK_TAG, "Waiting for LoRa packets...");
+
+    LoRaPacket pkt;
+    uint32_t loopCount = 0;
+
+    while (true) {
+        loopCount++;
+
+        if (loopCount % 100 == 0) {
+            LOGI(TASK_TAG, "Loop iteration %lu, queue items waiting: %d",
+                 loopCount, uxQueueMessagesWaiting(loraUpdateQueue));
+        }
+
+        // Block indefinitely waiting for packets (no timeout)
+        // Task will wake immediately when packet arrives
+        if (xQueueReceive(loraUpdateQueue, &pkt, portMAX_DELAY)) {
+            pktCount++;
+            LOGI(TASK_TAG, "*** #%d Received packet with RSSI: %d dBm, SNR: %.2f dB, Length: %d ***",
+                 pktCount, pkt.rssi, pkt.snr, pkt.length);
+
+            Serial.print("Main task received data: ");
+            for (uint8_t i = 0; i < pkt.length && i < 50; i++) {
+                Serial.print((char)pkt.data[i]);
+            }
+            Serial.println();
+        }
+        // No vTaskDelay needed - xQueueReceive with portMAX_DELAY already yields properly
+    }
+}
 
 void setup() {
     Serial.begin(115200);
@@ -125,9 +166,7 @@ void setup() {
     if (g_lora) {
         static LoRaTaskParams loraParams;
         loraParams.lora = g_lora;
-#ifdef DISPLAY_MODEL
-#endif
-
+        loraUpdateQueue = xQueueCreate(10, sizeof(LoRaPacket));
         BaseType_t result = xTaskCreatePinnedToCore(
             loraTask,
             "LoRa",
@@ -145,12 +184,26 @@ void setup() {
         }
     }
 
+    // Create main packet-receiving task
+    BaseType_t mainTaskResult = xTaskCreatePinnedToCore(
+        mainTask,
+        "MainTask",
+        4096,
+        nullptr,
+        10,
+        nullptr,
+        0
+    );
+
+    if (mainTaskResult == pdPASS) {
+        LOGI(TAG, "Main task created on core 0 (priority 10)");
+    } else {
+        LOGE(TAG, "Failed to create main task");
+    }
+
     LOGI(TAG, "===========================================");
-    LOGI(TAG, "All tasks spawned - entering main loop");
+    LOGI(TAG, "All tasks spawned - setup complete");
     LOGI(TAG, "===========================================");
 }
 
-void loop() {
-
-    vTaskDelay(pdMS_TO_TICKS(100));
-}
+void loop() {}

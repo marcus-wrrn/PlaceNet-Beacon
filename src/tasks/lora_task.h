@@ -1,14 +1,25 @@
 #pragma once
-
 #include "config.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
 class LoRaModule;
 
+#define PACKET_LEN 256
+
 struct LoRaTaskParams {
     LoRaModule* lora;
 };
+
+// struct LoRaUpdate {
+//     int rssi;
+//     float snr;
+//     uint8_t data[PACKET_LEN];
+//     uint8_t len;
+//     uint32_t packetCount;
+// };
+
+extern QueueHandle_t loraUpdateQueue;
 
 /**
  * @brief LoRa task function - handles TX/RX radio operations
