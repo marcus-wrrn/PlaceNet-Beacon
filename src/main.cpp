@@ -31,6 +31,7 @@ static PMUModule* g_pmu = nullptr;
 
 #ifdef DISPLAY_MODEL
 static QueueHandle_t g_displayEventQueue = nullptr;
+static DisplayModule d_mod;
 #endif
 
 static LoRaModule* g_lora = nullptr;
@@ -71,7 +72,7 @@ void setup() {
     }
 #endif
 
-    delay(100); // Allow PMU to stabilize power rails
+    delay(100);
 
 #ifdef I2C_SDA
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -129,26 +130,27 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_MODEL
-    if (g_displayEventQueue) {
-        static DisplayTaskParams displayParams;
-        displayParams.eventQueue = g_displayEventQueue;
+    // if (g_displayEventQueue) {
+    //     static DisplayTaskParams displayParams;
+    //     displayParams.eventQueue = g_displayEventQueue;
 
-        BaseType_t result = xTaskCreatePinnedToCore(
-            displayTask,
-            "Display",
-            4096,
-            &displayParams,
-            5,
-            nullptr,
-            1
-        );
+    //     BaseType_t result = xTaskCreatePinnedToCore(
+    //         displayTask,
+    //         "Display",
+    //         4096,
+    //         &displayParams,
+    //         5,
+    //         nullptr,
+    //         1
+    //     );
 
-        if (result == pdPASS) {
-            LOGI(TAG, "Display task created on core 1 (priority 5)");
-        } else {
-            LOGE(TAG, "Failed to create Display task");
-        }
-    }
+    //     if (result == pdPASS) {
+    //         LOGI(TAG, "Display task created on core 1 (priority 5)");
+    //     } else {
+    //         LOGE(TAG, "Failed to create Display task");
+    //     }
+    // }
+    d_mod.init();
 #endif
 
     if (g_lora) {
@@ -181,23 +183,6 @@ void setup() {
 }
 
 void loop() {
-#ifdef HAS_PMU
-    if (g_pmu && g_displayEventQueue) {
-        static uint32_t lastBatteryUpdate = 0;
-        uint32_t currentTime = millis();
-
-        if (currentTime - lastBatteryUpdate >= 5000) {
-            lastBatteryUpdate = currentTime;
-
-            DisplayEvent evt = createBatteryEvent(
-                g_pmu->getBatteryVoltage(),
-                g_pmu->isCharging(),
-                g_pmu->hasBattery()
-            );
-            sendDisplayEvent(g_displayEventQueue, evt);
-        }
-    }
-#endif
 
     vTaskDelay(pdMS_TO_TICKS(100));
 }

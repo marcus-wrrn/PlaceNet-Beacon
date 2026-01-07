@@ -18,6 +18,7 @@ public:
     bool isInitialized() const { return initialized_; }
 
 private:
+    bool renderBootSplash();
     DISPLAY_MODEL* u8g2_;
     bool initialized_;
 };
