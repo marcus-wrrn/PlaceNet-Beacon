@@ -8,9 +8,6 @@ class LoRaModule;
 
 struct LoRaTaskParams {
     LoRaModule* lora;
-#ifdef DISPLAY_MODEL
-    QueueHandle_t displayEventQueue;
-#endif
 };
 
 /**

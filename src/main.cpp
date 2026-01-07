@@ -16,7 +16,6 @@
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
 #include "DisplayEvents.h"
-#include "tasks/display_task.h"
 #endif
 
 #include "LoRaModule.h"
@@ -30,8 +29,7 @@ static PMUModule* g_pmu = nullptr;
 #endif
 
 #ifdef DISPLAY_MODEL
-static QueueHandle_t g_displayEventQueue = nullptr;
-static DisplayModule d_mod;
+static DisplayModule display;
 #endif
 
 static LoRaModule* g_lora = nullptr;
@@ -91,15 +89,6 @@ void setup() {
 #endif
 #endif
 
-#ifdef DISPLAY_MODEL
-    g_displayEventQueue = xQueueCreate(20, sizeof(DisplayEvent));
-    if (!g_displayEventQueue) {
-        LOGE(TAG, "Failed to create display event queue");
-    } else {
-        LOGI(TAG, "Display event queue created (depth: 20)");
-    }
-#endif
-
     g_lora = new LoRaModule();
     if (!g_lora) {
         LOGE(TAG, "Failed to create LoRaModule");
@@ -130,34 +119,13 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_MODEL
-    // if (g_displayEventQueue) {
-    //     static DisplayTaskParams displayParams;
-    //     displayParams.eventQueue = g_displayEventQueue;
-
-    //     BaseType_t result = xTaskCreatePinnedToCore(
-    //         displayTask,
-    //         "Display",
-    //         4096,
-    //         &displayParams,
-    //         5,
-    //         nullptr,
-    //         1
-    //     );
-
-    //     if (result == pdPASS) {
-    //         LOGI(TAG, "Display task created on core 1 (priority 5)");
-    //     } else {
-    //         LOGE(TAG, "Failed to create Display task");
-    //     }
-    // }
-    d_mod.init();
+    display.init();
 #endif
 
     if (g_lora) {
         static LoRaTaskParams loraParams;
         loraParams.lora = g_lora;
 #ifdef DISPLAY_MODEL
-        loraParams.displayEventQueue = g_displayEventQueue;
 #endif
 
         BaseType_t result = xTaskCreatePinnedToCore(
