@@ -5,9 +5,6 @@
 #ifdef DISPLAY_MODEL
 
 #include <U8g2lib.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-#include "DisplayEvents.h"
 
 class DisplayModule {
 public:
@@ -16,15 +13,12 @@ public:
 
     bool init();
 
-    QueueHandle_t getEventQueue() { return eventQueue_; }
-
     DISPLAY_MODEL* getDisplay() { return u8g2_; }
 
     bool isInitialized() const { return initialized_; }
 
 private:
     DISPLAY_MODEL* u8g2_;
-    QueueHandle_t eventQueue_;
     bool initialized_;
 };
 

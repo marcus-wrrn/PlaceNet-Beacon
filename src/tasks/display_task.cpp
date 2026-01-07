@@ -220,33 +220,37 @@ static void updateDisplayMode(DisplayState* state) {
 }
 
 void displayTask(void* pvParameters) {
-    DisplayModule* display = static_cast<DisplayModule*>(pvParameters);
+    DisplayTaskParams* params = static_cast<DisplayTaskParams*>(pvParameters);
 
-    if (!display) {
-        LOGE(TAG, "Display module pointer is null, task exiting");
+    if (!params) {
+        LOGE(TAG, "Display task parameters are null, task exiting");
         vTaskDelete(nullptr);
         return;
     }
 
-    if (!display->isInitialized()) {
-        LOGE(TAG, "Display hardware not initialized, task exiting");
+    if (!params->eventQueue) {
+        LOGE(TAG, "Event queue is null, task exiting");
         vTaskDelete(nullptr);
         return;
     }
 
-    LOGI(TAG, "Display task started - event-driven architecture");
+    LOGI(TAG, "Display task started - initializing display module");
+
+    DisplayModule display;
+    if (!display.init()) {
+        LOGE(TAG, "Display hardware initialization failed, task exiting");
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    LOGI(TAG, "Display task - event-driven architecture ready");
 
     DisplayState state;
     initDisplayState(&state);
 
-    QueueHandle_t eventQueue = display->getEventQueue();
-    DISPLAY_MODEL* u8g2 = display->getDisplay();
+    QueueHandle_t eventQueue = params->eventQueue;
+    DISPLAY_MODEL* u8g2 = display.getDisplay();
 
-    if (!eventQueue) {
-        LOGE(TAG, "Event queue is null!");
-        vTaskDelete(nullptr);
-        return;
-    }
     if (!u8g2) {
         LOGE(TAG, "U8g2 display is null!");
         vTaskDelete(nullptr);

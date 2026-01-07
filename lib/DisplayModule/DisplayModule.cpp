@@ -9,25 +9,14 @@ static const char* TAG = "DISPLAY_MODULE";
 
 DisplayModule::DisplayModule()
     : u8g2_(nullptr)
-    , eventQueue_(nullptr)
     , initialized_(false)
 {
-    eventQueue_ = xQueueCreate(20, sizeof(DisplayEvent));
-    if (!eventQueue_) {
-        LOGE(TAG, "Failed to create display event queue");
-    } else {
-        LOGI(TAG, "Display event queue created (depth: 20)");
-    }
 }
 
 DisplayModule::~DisplayModule() {
     if (u8g2_) {
         delete u8g2_;
         u8g2_ = nullptr;
-    }
-    if (eventQueue_) {
-        vQueueDelete(eventQueue_);
-        eventQueue_ = nullptr;
     }
 }
 

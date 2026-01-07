@@ -5,7 +5,6 @@
 #include <freertos/task.h>
 
 #ifdef DISPLAY_MODEL
-#include "DisplayModule.h"
 #include "DisplayEvents.h"
 #endif
 
@@ -32,7 +31,7 @@ void loraTask(void* pvParameters) {
     LoRaModule* lora = params->lora;
 
 #ifdef DISPLAY_MODEL
-    DisplayModule* display = params->display;
+    QueueHandle_t displayQueue = params->displayEventQueue;
 #endif
 
     LOGI(TAG, "LoRa task starting...");
@@ -78,14 +77,14 @@ void loraTask(void* pvParameters) {
             lastDutyCycleReport = currentTime;
 
 #ifdef DISPLAY_MODEL
-            if (display) {
+            if (displayQueue) {
                 DisplayEvent evt = createLoRaTxEvent(
                     success,
                     beaconCount,
                     dutyCycle1m,
                     dutyCycle10m
                 );
-                sendDisplayEvent(display->getEventQueue(), evt);
+                sendDisplayEvent(displayQueue, evt);
             }
 #endif
         }
@@ -127,7 +126,7 @@ void loraTask(void* pvParameters) {
             LOGI(TAG, "===========================");
 
 #ifdef DISPLAY_MODEL
-            if (display) {
+            if (displayQueue) {
                 DisplayEvent evt = createLoRaRxEvent(
                     packet.rssi,
                     packet.snr,
@@ -135,7 +134,7 @@ void loraTask(void* pvParameters) {
                     packet.length,
                     packetCount
                 );
-                sendDisplayEvent(display->getEventQueue(), evt);
+                sendDisplayEvent(displayQueue, evt);
             }
 #endif
         }

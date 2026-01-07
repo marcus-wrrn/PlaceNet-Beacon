@@ -24,13 +24,13 @@
 
 static const char *TAG = "MAIN";
 
-// Global module pointers (managed by setup)
+// Global module pointers and queues (managed by setup)
 #ifdef HAS_PMU
 static PMUModule* g_pmu = nullptr;
 #endif
 
 #ifdef DISPLAY_MODEL
-static DisplayModule* g_display = nullptr;
+static QueueHandle_t g_displayEventQueue = nullptr;
 #endif
 
 static LoRaModule* g_lora = nullptr;
@@ -91,17 +91,11 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_MODEL
-    g_display = new DisplayModule();
-    if (!g_display) {
-        LOGE(TAG, "Failed to create DisplayModule");
+    g_displayEventQueue = xQueueCreate(20, sizeof(DisplayEvent));
+    if (!g_displayEventQueue) {
+        LOGE(TAG, "Failed to create display event queue");
     } else {
-        if (!g_display->init()) {
-            LOGE(TAG, "Failed to initialize display hardware");
-            delete g_display;
-            g_display = nullptr;
-        } else {
-            LOGI(TAG, "Display hardware initialized successfully");
-        }
+        LOGI(TAG, "Display event queue created (depth: 20)");
     }
 #endif
 
@@ -135,15 +129,18 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_MODEL
-    if (g_display) {
+    if (g_displayEventQueue) {
+        static DisplayTaskParams displayParams;
+        displayParams.eventQueue = g_displayEventQueue;
+
         BaseType_t result = xTaskCreatePinnedToCore(
-            displayTask,                    
-            "Display",                     
-            4096,                           
-            g_display,                      
-            5,                              
-            nullptr,                        
-            1                              
+            displayTask,
+            "Display",
+            4096,
+            &displayParams,
+            5,
+            nullptr,
+            1
         );
 
         if (result == pdPASS) {
@@ -158,7 +155,7 @@ void setup() {
         static LoRaTaskParams loraParams;
         loraParams.lora = g_lora;
 #ifdef DISPLAY_MODEL
-        loraParams.display = g_display;
+        loraParams.displayEventQueue = g_displayEventQueue;
 #endif
 
         BaseType_t result = xTaskCreatePinnedToCore(
@@ -185,7 +182,7 @@ void setup() {
 
 void loop() {
 #ifdef HAS_PMU
-    if (g_pmu && g_display) {
+    if (g_pmu && g_displayEventQueue) {
         static uint32_t lastBatteryUpdate = 0;
         uint32_t currentTime = millis();
 
@@ -197,7 +194,7 @@ void loop() {
                 g_pmu->isCharging(),
                 g_pmu->hasBattery()
             );
-            sendDisplayEvent(g_display->getEventQueue(), evt);
+            sendDisplayEvent(g_displayEventQueue, evt);
         }
     }
 #endif

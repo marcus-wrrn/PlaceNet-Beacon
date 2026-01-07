@@ -1,16 +1,15 @@
 #pragma once
 
 #include "config.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 class LoRaModule;
-#ifdef DISPLAY_MODEL
-class DisplayModule;
-#endif
 
 struct LoRaTaskParams {
     LoRaModule* lora;
 #ifdef DISPLAY_MODEL
-    DisplayModule* display;
+    QueueHandle_t displayEventQueue;
 #endif
 };
 
