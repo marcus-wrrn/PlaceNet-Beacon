@@ -81,7 +81,7 @@ void setup() {
 
     Serial.println();
     LOGI(TAG, "===========================================");
-    LOGI(TAG, "PlaceNet Beacon - FreeRTOS Architecture");
+    LOGI(TAG, "Beacon");
     LOGI(TAG, "===========================================");
 
     BoardUtility::printChipInfo();

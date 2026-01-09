@@ -22,12 +22,12 @@ DisplayModule::~DisplayModule() {
 
 bool DisplayModule::renderBootSplash() {
     u8g2_->clearBuffer();
-    u8g2_->setFont(u8g2_font_inb19_mr);
-    u8g2_->drawStr(0, 30, "PlaceNet");
+    u8g2_->setFont(u8g2_font_4x6_tr);
+    u8g2_->drawStr(0, 30, "The Beacon");
     u8g2_->drawHLine(2, 50, 47);
     u8g2_->drawHLine(3, 54, 47);
     u8g2_->drawVLine(3, 54, 10);
-    u8g2_->drawStr(30, 60, "Beacon");
+    u8g2_->drawStr(30, 60, "Is Lit");
     u8g2_->sendBuffer();
     return true;
 }
@@ -48,11 +48,20 @@ bool DisplayModule::init() {
     u8g2_ = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE);
 
     LOGI(TAG, "Calling u8g2->begin()...");
-    u8g2_->begin();
+    bool result = u8g2_->begin();
+    if (!result) {
+        LOGE(TAG, "U8G2 Could not initialize");
+        return result;
+    }
+
+    result = renderBootSplash();
+    if (!result) {
+        LOGE(TAG, "Splash Screen failed to initialize");
+    }
 
     initialized_ = true;
     LOGI(TAG, "Display initialized successfully");
-    return renderBootSplash();
+    return result;
 }
 
 #endif // DISPLAY_MODEL
