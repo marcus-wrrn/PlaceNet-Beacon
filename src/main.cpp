@@ -19,8 +19,9 @@
 
 #include "LoRaModule.h"
 #include "tasks/lora_task.h"
+#include "tasks/main_task.h"
 
-static const char *TAG = "MAIN";
+static const char *TAG = "INIT";
 
 // Global module pointers and queues (managed by setup)
 #ifdef HAS_PMU
@@ -28,54 +29,11 @@ static PMUModule* g_pmu = nullptr;
 #endif
 
 #ifdef DISPLAY_MODEL
-static DisplayModule display;
+DisplayModule display;
 #endif
 
 static LoRaModule* g_lora = nullptr;
-static int pktCount = 0;
-
-void mainTask(void* pvParameters) {
-    const char* TASK_TAG = "MAIN_TASK";
-
-    LOGI(TASK_TAG, "Main task starting...");
-
-    if (loraUpdateQueue == nullptr) {
-        LOGE(TASK_TAG, "ERROR: loraUpdateQueue is NULL!");
-        vTaskDelete(nullptr);
-        return;
-    }
-
-    LOGI(TASK_TAG, "Waiting for LoRa packets...");
-
-    LoRaPacket pkt;
-    uint32_t loopCount = 0;
-
-    while (true) {
-        loopCount++;
-
-        if (loopCount % 100 == 0) {
-            LOGI(TASK_TAG, "Loop iteration %lu, queue items waiting: %d",
-                 loopCount, uxQueueMessagesWaiting(loraUpdateQueue));
-        }
-
-        // Block indefinitely waiting for packets (no timeout)
-        // Task will wake immediately when packet arrives
-        if (xQueueReceive(loraUpdateQueue, &pkt, portMAX_DELAY)) {
-            pktCount++;
-            LOGI(TASK_TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
-                 pktCount, pkt.rssi, pkt.snr, pkt.length);
-            
-            char buffer[sizeof(pkt)];
-            snprintf(buffer, sizeof(buffer),
-            "#%d Received packet with RSSI: %ddBm\nSNR: %.2f dB\nLength: %d", 
-            pktCount, pkt.rssi, pkt.snr, pkt.length);
-            display.clearBuffer();
-            display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
-            display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
-            display.sendBuffer();
-        }
-    }
-}
+int pktCount = 0;
 
 void setup() {
     Serial.begin(115200);
