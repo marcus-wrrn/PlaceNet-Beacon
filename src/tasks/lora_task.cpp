@@ -9,7 +9,7 @@ static const char* TAG = "LORA_TASK";
 QueueHandle_t loraUpdateQueue = nullptr;
 
 #ifdef LORA_MODE_BEACON
-#define BEACON_URL "https://placenet.local"
+#define BEACON_URL "https://placen3t.local"
 #define BEACON_INTERVAL_MS 60000
 #define DUTY_CYCLE_REPORT_INTERVAL_MS 60000
 #endif
@@ -17,25 +17,48 @@ QueueHandle_t loraUpdateQueue = nullptr;
 #ifdef LORA_MODE_RECEIVER
 #endif
 
-void loraTask(void* pvParameters) {
-    LoRaTaskParams* params = static_cast<LoRaTaskParams*>(pvParameters);
-    
-    if (!params || !params->lora) {
-        LOGE(TAG, "LoRa task parameters invalid, task exiting");
+void loraReceiver(LoRaModule* lora) {
+#ifdef LORA_MODE_RECEIVER
+    LOGI(TAG, "LoRa task started - Receiver mode");
+
+    if (!lora->startListening()) {
+        LOGE(TAG, "Failed to start listening mode, task exiting");
         vTaskDelete(nullptr);
         return;
     }
 
-    LoRaModule* lora = params->lora;
+    LOGI(TAG, "Listening for LoRa packets...");
 
-    LOGI(TAG, "LoRa task starting...");
+    LoRaPacket packet;
+    uint32_t packetCount = 0;
 
-    if (!lora->init()) {
-        LOGE(TAG, "LoRa initialization failed, task exiting");
-        vTaskDelete(nullptr);
-        return;
+    while (1) {
+        if (lora->receive(&packet)) {
+            packetCount++;
+
+            LOGI(TAG, "=== Packet #%lu Received ===", packetCount);
+            LOGI(TAG, "Length: %d bytes", packet.length);
+            LOGI(TAG, "RSSI: %d dBm", packet.rssi);
+            LOGI(TAG, "SNR: %.2f dB", packet.snr);
+            LOGI(TAG, "Data: %.*s", packet.length, (const char*)packet.data);
+            LOGI(TAG, "===========================");
+
+            if (loraUpdateQueue != nullptr) {
+                BaseType_t result = xQueueSend(loraUpdateQueue, &packet, portMAX_DELAY);
+                if (result == pdPASS) {
+                    LOGI(TAG, "Packet queued successfully to loraUpdateQueue");
+                } else {
+                    LOGE(TAG, "Failed to queue packet to loraUpdateQueue");
+                }
+            } else {
+                LOGE(TAG, "loraUpdateQueue is null! Cannot send packet to main task");
+            }
+        }
     }
+#endif
+}
 
+void loraBeacon(LoRaModule* lora) {
 #ifdef LORA_MODE_BEACON
     LOGI(TAG, "LoRa task started - Broadcasting URL every %d ms", BEACON_INTERVAL_MS);
 
@@ -67,78 +90,36 @@ void loraTask(void* pvParameters) {
             Serial.printf(" 10 minutes: %.3f%%\n", dutyCycle10m);
             Serial.printf("  1 hour:    %.3f%%\n", dutyCycle1h);
             Serial.println("==============================");
-
             lastDutyCycleReport = currentTime;
-
-#ifdef DISPLAY_MODEL
-            if (displayQueue) {
-                DisplayEvent evt = createLoRaTxEvent(
-                    success,
-                    beaconCount,
-                    dutyCycle1m,
-                    dutyCycle10m
-                );
-                sendDisplayEvent(displayQueue, evt);
-            }
-#endif
         }
-
         vTaskDelay(pdMS_TO_TICKS(BEACON_INTERVAL_MS));
     }
+#endif
+}
 
-#elif defined(LORA_MODE_RECEIVER)
-    LOGI(TAG, "LoRa task started - Receiver mode");
-
-    if (!lora->startListening()) {
-        LOGE(TAG, "Failed to start listening mode, task exiting");
+void loraTask(void* pvParameters) {
+    LoRaTaskParams* params = static_cast<LoRaTaskParams*>(pvParameters);
+    
+    if (!params || !params->lora) {
+        LOGE(TAG, "LoRa task parameters invalid, task exiting");
         vTaskDelete(nullptr);
         return;
     }
 
-    LOGI(TAG, "Listening for LoRa packets...");
+    LoRaModule* lora = params->lora;
 
-    LoRaPacket packet;
-    uint32_t packetCount = 0;
+    LOGI(TAG, "LoRa task starting...");
 
-    while (1) {
-        if (lora->receive(&packet)) {
-            packetCount++;
-
-            LOGI(TAG, "=== Packet #%lu Received ===", packetCount);
-            LOGI(TAG, "Length: %d bytes", packet.length);
-            LOGI(TAG, "RSSI: %d dBm", packet.rssi);
-            LOGI(TAG, "SNR: %.2f dB", packet.snr);
-
-            Serial.print("Data (text): ");
-            for (uint8_t i = 0; i < packet.length; i++) {
-                if (packet.data[i] >= 32 && packet.data[i] <= 126) {
-                    Serial.print((char)packet.data[i]);
-                } else {
-                    Serial.print('.');
-                }
-            }
-            Serial.println();
-
-            Serial.print("Data (hex): ");
-            for (uint8_t i = 0; i < packet.length; i++) {
-                Serial.printf("%02X ", packet.data[i]);
-            }
-            Serial.println();
-            LOGI(TAG, "===========================");
-
-            if (loraUpdateQueue != nullptr) {
-                BaseType_t result = xQueueSend(loraUpdateQueue, &packet, portMAX_DELAY);
-                if (result == pdPASS) {
-                    LOGI(TAG, "Packet queued successfully to loraUpdateQueue");
-                } else {
-                    LOGE(TAG, "Failed to queue packet to loraUpdateQueue");
-                }
-            } else {
-                LOGE(TAG, "loraUpdateQueue is null! Cannot send packet to main task");
-            }
-        }
+    if (!lora->init()) {
+        LOGE(TAG, "LoRa initialization failed, task exiting");
+        vTaskDelete(nullptr);
+        return;
     }
 
+#ifdef LORA_MODE_BEACON
+    loraBeacon(lora);
+#elif defined(LORA_MODE_RECEIVER)
+    loraReceiver(lora);
 #else
     #error "Must define either LORA_MODE_BEACON or LORA_MODE_RECEIVER in config.h"
 #endif

@@ -101,7 +101,7 @@
 // Radio Type String
 #if defined(USING_SX1262)
 #define RADIO_TYPE_STR              "SX1262"
-#define CONFIG_RADIO_FREQ           868.0
+#define CONFIG_RADIO_FREQ           915.1
 #define CONFIG_RADIO_OUTPUT_POWER   22
 #define CONFIG_RADIO_BW             125.0
 
@@ -116,8 +116,8 @@
 #define LORA_RX_QUEUE_LEN 10
 
 // LoRa Operation Mode (choose one)
-#define LORA_MODE_RECEIVER     // Listen for packets and display them
-// #define LORA_MODE_BEACON    // Transmit beacon URL periodically
+//#define LORA_MODE_RECEIVER     // Listen for packets and display them
+#define LORA_MODE_BEACON    // Transmit beacon URL periodically
 
 //=====================================================
 // T-Deck Configuration

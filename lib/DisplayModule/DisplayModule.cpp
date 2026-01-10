@@ -4,14 +4,14 @@
 
 #include "logger.h"
 #include <Wire.h>
+#include <cstdarg>
 
 static const char* TAG = "DISPLAY_MODULE";
 
 DisplayModule::DisplayModule()
     : u8g2_(nullptr)
     , initialized_(false)
-{
-}
+{}
 
 DisplayModule::~DisplayModule() {
     if (u8g2_) {
@@ -22,12 +22,8 @@ DisplayModule::~DisplayModule() {
 
 bool DisplayModule::renderBootSplash() {
     u8g2_->clearBuffer();
-    u8g2_->setFont(u8g2_font_4x6_tr);
-    u8g2_->drawStr(0, 30, "The Beacon");
-    u8g2_->drawHLine(2, 50, 47);
-    u8g2_->drawHLine(3, 54, 47);
-    u8g2_->drawVLine(3, 54, 10);
-    u8g2_->drawStr(30, 60, "Is Lit");
+    u8g2_->setFont(u8g2_font_5x8_tr);
+    u8g2_->drawStr(0, 8, "PlaceNet Beacon Online");
     u8g2_->sendBuffer();
     return true;
 }
@@ -62,6 +58,44 @@ bool DisplayModule::init() {
     initialized_ = true;
     LOGI(TAG, "Display initialized successfully");
     return result;
+}
+
+void DisplayModule::clearBuffer() {
+    if (u8g2_) {
+        u8g2_->clearBuffer();
+    }
+}
+
+void DisplayModule::drawStr(int x, int y, const char* str) {
+    if (u8g2_) {
+        u8g2_->drawStr(x, y, str);
+    }
+}
+
+void DisplayModule::drawStrF(int x, int y, const char* format, ...) {
+    if (!u8g2_) {
+        return;
+    }
+
+    char buffer[128];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    u8g2_->drawStr(x, y, buffer);
+}
+
+void DisplayModule::sendBuffer() {
+    if (u8g2_) {
+        u8g2_->sendBuffer();
+    }
+}
+
+void DisplayModule::setFont(const uint8_t* font) {
+    if (u8g2_) {
+        u8g2_->setFont(font);
+    }
 }
 
 #endif // DISPLAY_MODEL

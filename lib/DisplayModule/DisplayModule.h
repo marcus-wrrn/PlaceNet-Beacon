@@ -13,9 +13,14 @@ public:
 
     bool init();
 
-    DISPLAY_MODEL* getDisplay() { return u8g2_; }
-
     bool isInitialized() const { return initialized_; }
+
+    // Display operations
+    void clearBuffer();
+    void drawStr(int x, int y, const char* str);
+    void drawStrF(int x, int y, const char* format, ...);
+    void sendBuffer();
+    void setFont(const uint8_t* font);
 
 private:
     bool renderBootSplash();

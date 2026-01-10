@@ -62,16 +62,18 @@ void mainTask(void* pvParameters) {
         // Task will wake immediately when packet arrives
         if (xQueueReceive(loraUpdateQueue, &pkt, portMAX_DELAY)) {
             pktCount++;
-            LOGI(TASK_TAG, "*** #%d Received packet with RSSI: %d dBm, SNR: %.2f dB, Length: %d ***",
+            LOGI(TASK_TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
                  pktCount, pkt.rssi, pkt.snr, pkt.length);
-
-            Serial.print("Main task received data: ");
-            for (uint8_t i = 0; i < pkt.length && i < 50; i++) {
-                Serial.print((char)pkt.data[i]);
-            }
-            Serial.println();
+            
+            char buffer[sizeof(pkt)];
+            snprintf(buffer, sizeof(buffer),
+            "#%d Received packet with RSSI: %ddBm\nSNR: %.2f dB\nLength: %d", 
+            pktCount, pkt.rssi, pkt.snr, pkt.length);
+            display.clearBuffer();
+            display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
+            display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+            display.sendBuffer();
         }
-        // No vTaskDelay needed - xQueueReceive with portMAX_DELAY already yields properly
     }
 }
 
