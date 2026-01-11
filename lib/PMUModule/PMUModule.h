@@ -10,7 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-struct ChargePacket {
+struct PMUState {
     uint16_t battery_voltage;
 };
 

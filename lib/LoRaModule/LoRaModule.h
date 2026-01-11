@@ -6,6 +6,7 @@
 #include <RadioLib.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <cstdint>
 
 // Maximum packet size
 #define LORA_MAX_PACKET_SIZE 255

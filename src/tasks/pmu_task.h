@@ -1,6 +1,10 @@
 #pragma once
 #include "config.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #ifdef HAS_PMU
+
+extern QueueHandle_t pmuStateQueue;
 
 /**
  * @brief PMU task function - handles power management events

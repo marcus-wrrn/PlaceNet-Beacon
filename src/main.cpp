@@ -119,15 +119,16 @@ void setup() {
 
 #ifdef HAS_PMU
     if (g_pmu) {
+        pmuStateQueue = xQueueCreate(5, sizeof(PMUState));
         TaskHandle_t pmuTaskHandle = nullptr;
         BaseType_t result = xTaskCreatePinnedToCore(
-            pmuTask,                        
-            "PMU",                          
-            4096,                           
-            g_pmu,                          
-            configMAX_PRIORITIES - 1,       
-            &pmuTaskHandle,                 
-            0                               
+            pmuTask,
+            "PMU",
+            4096,
+            g_pmu,
+            configMAX_PRIORITIES - 1,
+            &pmuTaskHandle,
+            0
         );
 
         if (result == pdPASS && pmuTaskHandle != nullptr) {
