@@ -23,8 +23,6 @@
 
 #ifdef HAS_HTTP_SERVER
 #include "SDCardModule.h"
-#include "HTTPServerModule.h"
-#include "tasks/http_server_task.h"
 #endif
 
 static const char *TAG = "INIT";

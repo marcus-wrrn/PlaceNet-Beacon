@@ -91,14 +91,15 @@ bool LoRaModule::transmit(const uint8_t* data, uint8_t length) {
 
     int state = radio_->transmit(const_cast<uint8_t*>(data), length);
 
-    if (state == RADIOLIB_ERR_NONE) {
-        recordTransmission(timeOnAirMs);
-        LOGI(TAG, "Transmission successful");
-        return true;
-    } else {
+    if (state != RADIOLIB_ERR_NONE) {
         LOGE(TAG, "Transmission failed, code: %d", state);
         return false;
-    }
+    } 
+
+    recordTransmission(timeOnAirMs);
+    LOGI(TAG, "Transmission successful");
+    return true;
+    
 }
 
 bool LoRaModule::startListening() {
@@ -119,10 +120,10 @@ bool LoRaModule::startListening() {
         mode_ = LORA_MODE_RX;
         LOGI(TAG, "Receive mode started successfully");
         return true;
-    } else {
-        LOGE(TAG, "Failed to start receive mode, code: %d", state);
-        return false;
-    }
+    } 
+    
+    LOGE(TAG, "Failed to start receive mode, code: %d", state);
+    return false;
 }
 
 bool LoRaModule::receive(LoRaPacket* packet, uint32_t timeoutMs) {
