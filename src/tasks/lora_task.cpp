@@ -2,15 +2,16 @@
 #include "LoRaModule.h"
 #include "logger.h"
 #include <freertos/FreeRTOS.h>
-#include <freertos/task.h> 
+#include <freertos/task.h>
+#include <cstring> 
 
 static const char* TAG = "LORA_TASK";
 
 QueueHandle_t loraUpdateQueue = nullptr;
 
 #ifdef LORA_MODE_BEACON
-#define BEACON_URL "https://placen3t.local"
-#define BEACON_INTERVAL_MS 60000
+#define BEACON_URL "https://placenet.local"
+#define BEACON_INTERVAL_MS 30000
 #define DUTY_CYCLE_REPORT_INTERVAL_MS 60000
 #endif
 
@@ -75,6 +76,23 @@ void loraBeacon(LoRaModule* lora) {
         bool success = lora->transmit((const uint8_t*)beaconUrl, beaconLength);
         if (success) {
             LOGI(TAG, "Beacon transmitted successfully");
+
+            if (loraUpdateQueue != nullptr) {
+                LoRaPacket packet;
+                memcpy(packet.data, beaconUrl, beaconLength);
+                packet.length = beaconLength;
+                packet.rssi = 0;
+                packet.snr = 0.0f;
+
+                BaseType_t result = xQueueSend(loraUpdateQueue, &packet, portMAX_DELAY);
+                if (result == pdPASS) {
+                    LOGI(TAG, "Transmitted packet queued successfully to loraUpdateQueue");
+                } else {
+                    LOGE(TAG, "Failed to queue transmitted packet to loraUpdateQueue");
+                }
+            } else {
+                LOGE(TAG, "loraUpdateQueue is null! Cannot send packet to main task");
+            }
         } else {
             LOGW(TAG, "Beacon transmission failed, will retry on next cycle");
         }

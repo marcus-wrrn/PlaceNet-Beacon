@@ -15,15 +15,20 @@
 
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
-#endif
 
+#endif
 #include "LoRaModule.h"
 #include "tasks/lora_task.h"
 #include "tasks/main_task.h"
 
+#ifdef HAS_HTTP_SERVER
+#include "SDCardModule.h"
+#include "HTTPServerModule.h"
+#include "tasks/http_server_task.h"
+#endif
+
 static const char *TAG = "INIT";
 
-// Global module pointers and queues (managed by setup)
 #ifdef HAS_PMU
 static PMUModule* g_pmu = nullptr;
 #endif
@@ -34,6 +39,11 @@ DisplayModule display;
 
 static LoRaModule* g_lora = nullptr;
 int pktCount = 0;
+
+#ifdef HAS_HTTP_SERVER
+static SDCardModule* g_sdCard = nullptr;
+static HTTPServerModule* g_httpServer = nullptr;
+#endif
 
 void setup() {
     Serial.begin(115200);
@@ -95,6 +105,18 @@ void setup() {
         LOGE(TAG, "Failed to create LoRaModule");
     }
 
+#ifdef HAS_HTTP_SERVER
+    g_sdCard = new SDCardModule();
+    if (!g_sdCard) {
+        LOGE(TAG, "Failed to create SDCardModule");
+    } else {
+        g_httpServer = new HTTPServerModule(g_sdCard);
+        if (!g_httpServer) {
+            LOGE(TAG, "Failed to create HTTPServerModule");
+        }
+    }
+#endif
+
     LOGI(TAG, "Spawning FreeRTOS tasks...");
 
 #ifdef HAS_PMU
@@ -130,7 +152,7 @@ void setup() {
         BaseType_t result = xTaskCreatePinnedToCore(
             loraTask,
             "LoRa",
-            8192,
+            4096,
             &loraParams,
             8,
             nullptr,
@@ -143,6 +165,30 @@ void setup() {
             LOGE(TAG, "Failed to create LoRa task");
         }
     }
+
+#ifdef HAS_HTTP_SERVER
+    if (g_sdCard && g_httpServer) {
+        static HTTPServerTaskParams httpParams;
+        httpParams.sdCard = g_sdCard;
+        httpParams.httpServer = g_httpServer;
+
+        BaseType_t result = xTaskCreatePinnedToCore(
+            httpServerTask,
+            "HTTP",
+            8192,
+            &httpParams,
+            7,
+            nullptr,
+            1
+        );
+
+        if (result == pdPASS) {
+            LOGI(TAG, "HTTP server task created on core 1 (priority 7)");
+        } else {
+            LOGE(TAG, "Failed to create HTTP server task");
+        }
+    }
+#endif
 
     // Create main packet-receiving task
     BaseType_t mainTaskResult = xTaskCreatePinnedToCore(

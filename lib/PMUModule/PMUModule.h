@@ -10,6 +10,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+struct ChargePacket {
+    uint16_t battery_voltage;
+};
+
 /**
  * @file PMUModule.h
  * @brief Power Management Unit controller for AXP192/AXP2101

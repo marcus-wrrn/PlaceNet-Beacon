@@ -31,17 +31,25 @@ void mainTask(void* pvParameters) {
 
         if (xQueueReceive(loraUpdateQueue, &pkt, portMAX_DELAY)) {
             pktCount++;
-            LOGI(TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
-                 pktCount, pkt.rssi, pkt.snr, pkt.length);
+            // TODO: Replace with an actual broadcast/receive test
+            bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
+
+            if (isSentPacket) {
+                LOGI(TAG, "Packet #%d sent\n%.*s", pktCount, pkt.length, (const char*)pkt.data);
+            } else {
+                LOGI(TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
+                     pktCount, pkt.rssi, pkt.snr, pkt.length);
+            }
 
 #ifdef DISPLAY_MODEL
-            char buffer[sizeof(pkt)];
-            snprintf(buffer, sizeof(buffer),
-            "#%d Received packet with RSSI: %ddBm\nSNR: %.2f dB\nLength: %d",
-            pktCount, pkt.rssi, pkt.snr, pkt.length);
             display.clearBuffer();
-            display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
-            display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+            if (isSentPacket) {
+                display.drawStrF(0, 8, "Packet #%d sent", pktCount);
+                display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+            } else {
+                display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
+                display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+            }
             display.sendBuffer();
 #endif
         }

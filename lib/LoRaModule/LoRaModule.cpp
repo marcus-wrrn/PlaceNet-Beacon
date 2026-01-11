@@ -5,8 +5,6 @@ static const char* TAG = "LORA_MODULE";
 
 LoRaModule::LoRaModule()
     : radio_(nullptr),
-      txQueue_(nullptr),
-      rxQueue_(nullptr),
       mode_(LORA_MODE_IDLE),
       initialized_(false),
       frequency_(CONFIG_RADIO_FREQ),
@@ -18,26 +16,10 @@ LoRaModule::LoRaModule()
       txRecordIndex_(0),
       txRecordCount_(0)
 {
-    txQueue_ = xQueueCreate(LORA_TX_QUEUE_LEN, sizeof(LoRaPacket));
-    rxQueue_ = xQueueCreate(LORA_RX_QUEUE_LEN, sizeof(LoRaPacket));
-
-    if (!txQueue_ || !rxQueue_) {
-        LOGE(TAG, "Failed to create LoRa queues");
-    }
-
     memset(txRecords_, 0, sizeof(txRecords_));
 }
 
 LoRaModule::~LoRaModule() {
-    if (txQueue_) {
-        vQueueDelete(txQueue_);
-        txQueue_ = nullptr;
-    }
-    if (rxQueue_) {
-        vQueueDelete(rxQueue_);
-        rxQueue_ = nullptr;
-    }
-
     if (radio_) {
         delete radio_;
         radio_ = nullptr;
@@ -73,32 +55,6 @@ bool LoRaModule::init() {
 
     LOGI(TAG, "LoRa radio initialized successfully");
     initialized_ = true;
-    return true;
-}
-
-bool LoRaModule::send(const uint8_t* data, uint8_t length) {
-    if (!initialized_) {
-        LOGW(TAG, "Cannot send - LoRa not initialized");
-        return false;
-    }
-
-    if (length > LORA_MAX_PACKET_SIZE) {
-        LOGE(TAG, "Packet too large: %d bytes (max %d)", length, LORA_MAX_PACKET_SIZE);
-        return false;
-    }
-
-    // Create packet
-    LoRaPacket packet;
-    memcpy(packet.data, data, length);
-    packet.length = length;
-
-    // Queue packet for TX task
-    if (xQueueSend(txQueue_, &packet, 0) != pdTRUE) {
-        LOGW(TAG, "TX queue full, packet dropped");
-        return false;
-    }
-
-    LOGD(TAG, "Packet queued for transmission (%d bytes)", length);
     return true;
 }
 

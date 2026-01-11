@@ -49,14 +49,6 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /**
-     * @brief Send a LoRa packet (queues for transmission)
-     * @param data Pointer to data buffer
-     * @param length Length of data to send
-     * @return true if packet queued successfully
-     */
-    bool send(const uint8_t* data, uint8_t length);
-
-    /**
      * @brief Transmit data immediately (blocking)
      * @param data Pointer to data buffer
      * @param length Length of data to transmit
@@ -86,18 +78,6 @@ public:
     bool setMode(LoRaMode mode);
 
     /**
-     * @brief Get TX queue handle
-     * @return QueueHandle_t for sending packets
-     */
-    QueueHandle_t getTxQueue() { return txQueue_; }
-
-    /**
-     * @brief Get RX queue handle
-     * @return QueueHandle_t for receiving packets
-     */
-    QueueHandle_t getRxQueue() { return rxQueue_; }
-
-    /**
      * @brief Get current mode
      * @return Current LoRa mode
      */
@@ -120,8 +100,6 @@ private:
 
     SX1262* radio_;
 
-    QueueHandle_t txQueue_;
-    QueueHandle_t rxQueue_;
     LoRaMode mode_;
     bool initialized_;
 

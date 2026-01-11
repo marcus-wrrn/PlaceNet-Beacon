@@ -217,3 +217,13 @@
 // #define LORA_MODE_BEACON    // Transmit beacon URL periodically
 
 #endif
+
+//=====================================================
+// WiFi & HTTP Server Configuration (All Boards)
+//=====================================================
+//#define HAS_HTTP_SERVER
+
+#define WIFI_SSID                   "YourNetworkName"
+#define WIFI_PASSWORD               "YourPassword"
+#define WIFI_CONNECT_TIMEOUT_MS     15000  // 15 seconds
+#define HTTP_SERVER_PORT            80
