@@ -21,6 +21,11 @@
 #include "tasks/lora_task.h"
 #include "tasks/main_task.h"
 
+#ifdef HAS_GPS
+#include "GPSModule.h"
+#include "tasks/location_task.h"
+#endif
+
 #ifdef HAS_HTTP_SERVER
 #include "SDCardModule.h"
 #endif
@@ -36,6 +41,11 @@ DisplayModule display;
 #endif
 
 static LoRaModule* g_lora = nullptr;
+
+#ifdef HAS_GPS
+static GPSModule* g_gps = nullptr;
+#endif
+
 int pktCount = 0;
 
 #ifdef HAS_HTTP_SERVER
@@ -90,18 +100,17 @@ void setup() {
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
     LOGI(TAG, "SPI bus initialized");
 
-#ifdef HAS_GPS
-#ifdef GPS_EN_PIN
-    pinMode(GPS_EN_PIN, OUTPUT);
-    digitalWrite(GPS_EN_PIN, HIGH);
-    LOGI(TAG, "GPS power enabled");
-#endif
-#endif
-
     g_lora = new LoRaModule();
     if (!g_lora) {
         LOGE(TAG, "Failed to create LoRaModule");
     }
+
+#ifdef HAS_GPS
+    g_gps = new GPSModule();
+    if (!g_gps || !g_gps->init()) {
+        LOGE(TAG, "Failed to create or initialize GPSModule");
+    }
+#endif
 
 #ifdef HAS_HTTP_SERVER
     g_sdCard = new SDCardModule();
@@ -124,7 +133,7 @@ void setup() {
         BaseType_t result = xTaskCreatePinnedToCore(
             pmuTask,
             "PMU",
-            4096,
+            4096/2,
             g_pmu,
             configMAX_PRIORITIES - 1,
             &pmuTaskHandle,
@@ -142,6 +151,29 @@ void setup() {
 
 #ifdef DISPLAY_MODEL
     display.init();
+#endif
+
+#ifdef HAS_GPS
+    if (g_gps) {
+        static LocationTaskParams locationParams;
+        locationParams.gps = g_gps;
+        locationUpdateQueue = xQueueCreate(5, sizeof(GPSData));
+        BaseType_t result = xTaskCreatePinnedToCore(
+            locationTask,
+            "Location",
+            4096,
+            &locationParams,
+            9,
+            nullptr,
+            1
+        );
+
+        if (result == pdPASS) {
+            LOGI(TAG, "Location task created on core 1 (priority 7)");
+        } else {
+            LOGE(TAG, "Failed to create Location task");
+        }
+    }
 #endif
 
     if (g_lora) {
@@ -164,6 +196,8 @@ void setup() {
             LOGE(TAG, "Failed to create LoRa task");
         }
     }
+
+
 
 #ifdef HAS_HTTP_SERVER
     if (g_sdCard && g_httpServer) {

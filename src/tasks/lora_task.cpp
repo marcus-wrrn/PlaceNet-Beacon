@@ -125,7 +125,6 @@ void loraTask(void* pvParameters) {
     }
 
     LoRaModule* lora = params->lora;
-
     LOGI(TAG, "LoRa task starting...");
 
     if (!lora->init()) {

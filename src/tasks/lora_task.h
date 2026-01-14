@@ -1,5 +1,6 @@
 #pragma once
 #include "config.h"
+#include "GPSModule.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
@@ -10,14 +11,6 @@ class LoRaModule;
 struct LoRaTaskParams {
     LoRaModule* lora;
 };
-
-// struct LoRaUpdate {
-//     int rssi;
-//     float snr;
-//     uint8_t data[PACKET_LEN];
-//     uint8_t len;
-//     uint32_t packetCount;
-// };
 
 extern QueueHandle_t loraUpdateQueue;
 

@@ -10,6 +10,11 @@
 #include "PMUModule.h"
 #endif
 
+#ifdef HAS_GPS
+#include "location_task.h"
+#include "GPSModule.h"
+#endif
+
 static const char* TAG = "MAIN";
 
 void mainTask(void* pvParameters) {
@@ -32,6 +37,11 @@ void mainTask(void* pvParameters) {
     bool hasBatteryData = false;
 #endif
 
+#ifdef HAS_GPS
+    GPSData gpsData;
+    bool hasGPSData = false;
+#endif
+
     while (true) {
         loopCount++;
 
@@ -46,6 +56,16 @@ void mainTask(void* pvParameters) {
             batteryVoltage = pmuState.battery_voltage;
             hasBatteryData = true;
             LOGI(TAG, "Battery voltage updated: %u mV", batteryVoltage);
+        }
+#endif
+
+#ifdef HAS_GPS
+        // Check for GPS location updates (non-blocking)
+        if (locationUpdateQueue && xQueueReceive(locationUpdateQueue, &gpsData, 0) == pdPASS) {
+            hasGPSData = true;
+            LOGI(TAG, "GPS location updated: %.6f, %.6f (Sats: %d)",
+                 gpsData.position.latitude, gpsData.position.longitude,
+                 gpsData.metadata.satelliteCount);
         }
 #endif
 
@@ -70,9 +90,18 @@ void mainTask(void* pvParameters) {
                 display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
                 display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
             }
+            int displayLine = 24;
 #ifdef HAS_PMU
             if (hasBatteryData) {
-                display.drawStrF(0, 24, "Battery: %u mV", batteryVoltage);
+                display.drawStrF(0, displayLine, "Bat: %u mV", batteryVoltage);
+                displayLine += 8;
+            }
+#endif
+#ifdef HAS_GPS
+            if (hasGPSData) {
+                display.drawStrF(0, displayLine, "%.6f, %.6f", gpsData.position.latitude, gpsData.position.longitude);
+                displayLine += 8;
+                display.drawStrF(0, displayLine, "Sats: %d, Alt: %.1fm", gpsData.metadata.satelliteCount, gpsData.metadata.altitude);
             }
 #endif
             display.sendBuffer();
