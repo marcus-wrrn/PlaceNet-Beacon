@@ -33,12 +33,12 @@ bool SDCardModule::init() {
     SPIClass sdSPI(HSPI);
     sdSPI.begin(SDCARD_SCLK, SDCARD_MISO, SDCARD_MOSI, SDCARD_CS);
 
-    if (!SD.begin(SDCARD_CS, sdSPI, 40000000, SD_MOUNT_POINT, SD_MAX_FILES)) {
+    if (!SD.begin(SDCARD_CS, sdSPI, 4000000U, SD_MOUNT_POINT, SD_MAX_FILES)) {
         LOGE(TAG, "SD card mount failed");
         return false;
     }
 #elif defined(T_DECK_SX1262)
-    if (!SD.begin(SDCARD_CS, SPI, 40000000, SD_MOUNT_POINT, SD_MAX_FILES)) {
+    if (!SD.begin(SDCARD_CS, SPI, 4000000U, SD_MOUNT_POINT, SD_MAX_FILES)) {
         LOGE(TAG, "SD card mount failed");
         return false;
     }
