@@ -130,7 +130,7 @@ void setup() {
         BaseType_t result = xTaskCreatePinnedToCore(
             pmuTask,
             "PMU",
-            4096/2,
+            2048,
             g_pmu,
             configMAX_PRIORITIES - 1,
             &pmuTaskHandle,
