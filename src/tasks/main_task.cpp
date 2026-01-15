@@ -8,11 +8,13 @@
 #ifdef HAS_PMU
 #include "pmu_task.h"
 #include "PMUModule.h"
+#include "managers/pmu_manager.h"
 #endif
 
 #ifdef HAS_GPS
 #include "location_task.h"
 #include "GPSModule.h"
+#include "managers/gps_manager.h"
 #endif
 
 static const char* TAG = "MAIN";
@@ -32,14 +34,11 @@ void mainTask(void* pvParameters) {
     uint32_t loopCount = 0;
 
 #ifdef HAS_PMU
-    PMUState pmuState;
-    uint16_t batteryVoltage = 0;
-    bool hasBatteryData = false;
+    PMUManager pmuManager;
 #endif
 
 #ifdef HAS_GPS
-    GPSData gpsData;
-    bool hasGPSData = false;
+    GPSManager gpsManager;
 #endif
 
     while (true) {
@@ -51,22 +50,11 @@ void mainTask(void* pvParameters) {
         }
 
 #ifdef HAS_PMU
-        // Check for PMU state updates (non-blocking)
-        if (pmuStateQueue && xQueueReceive(pmuStateQueue, &pmuState, 0) == pdPASS) {
-            batteryVoltage = pmuState.battery_voltage;
-            hasBatteryData = true;
-            LOGI(TAG, "Battery voltage updated: %u mV", batteryVoltage);
-        }
+        pmuManager.updatePMU();
 #endif
 
 #ifdef HAS_GPS
-        // Check for GPS location updates (non-blocking)
-        if (locationUpdateQueue && xQueueReceive(locationUpdateQueue, &gpsData, 0) == pdPASS) {
-            hasGPSData = true;
-            LOGI(TAG, "GPS location updated: %.6f, %.6f (Sats: %d)",
-                 gpsData.position.latitude, gpsData.position.longitude,
-                 gpsData.metadata.satelliteCount);
-        }
+        gpsManager.updateGPS();
 #endif
 
         if (xQueueReceive(loraUpdateQueue, &pkt, pdMS_TO_TICKS(100))) {
@@ -84,25 +72,17 @@ void mainTask(void* pvParameters) {
 #ifdef DISPLAY_MODEL
             display.clearBuffer();
             if (isSentPacket) {
-                display.drawStrF(0, 8, "Packet #%d sent", pktCount);
-                display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+                display.drawLine("Packet #%d sent", pktCount);
+                display.drawLine("%.*s", pkt.length, (const char*)pkt.data);
             } else {
-                display.drawStrF(0, 8, "#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
-                display.drawStrF(0, 16, "%.*s", pkt.length, (const char*)pkt.data);
+                display.drawLine("#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
+                display.drawLine("%.*s", pkt.length, (const char*)pkt.data);
             }
-            int displayLine = 24;
 #ifdef HAS_PMU
-            if (hasBatteryData) {
-                display.drawStrF(0, displayLine, "Bat: %u mV", batteryVoltage);
-                displayLine += 8;
-            }
+            pmuManager.logPMU(&display);
 #endif
 #ifdef HAS_GPS
-            if (hasGPSData) {
-                display.drawStrF(0, displayLine, "%.6f, %.6f", gpsData.position.latitude, gpsData.position.longitude);
-                displayLine += 8;
-                display.drawStrF(0, displayLine, "Sats: %d, Alt: %.1fm", gpsData.metadata.satelliteCount, gpsData.metadata.altitude);
-            }
+            gpsManager.logGPS(&display);
 #endif
             display.sendBuffer();
 #endif

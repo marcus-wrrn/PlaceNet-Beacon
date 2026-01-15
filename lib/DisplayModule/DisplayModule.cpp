@@ -11,6 +11,7 @@ static const char* TAG = "DISPLAY_MODULE";
 DisplayModule::DisplayModule()
     : u8g2_(nullptr)
     , initialized_(false)
+    , lineCount_(0)
 {}
 
 DisplayModule::~DisplayModule() {
@@ -56,6 +57,7 @@ bool DisplayModule::init() {
     }
 
     initialized_ = true;
+    lineCount_ = 0;
     LOGI(TAG, "Display initialized successfully");
     return result;
 }
@@ -64,6 +66,7 @@ void DisplayModule::clearBuffer() {
     if (u8g2_) {
         u8g2_->clearBuffer();
     }
+    lineCount_ = 0;
 }
 
 void DisplayModule::drawStr(int x, int y, const char* str) {
@@ -84,6 +87,21 @@ void DisplayModule::drawStrF(int x, int y, const char* format, ...) {
     va_end(args);
 
     u8g2_->drawStr(x, y, buffer);
+}
+
+void DisplayModule::drawLine(const char* format, ...) {
+    if (!u8g2_) {
+        return;
+    }
+
+    char buffer[128];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    u8g2_->drawStr(0, (lineCount_ + 1) * 8, buffer);
+    lineCount_++;
 }
 
 void DisplayModule::sendBuffer() {

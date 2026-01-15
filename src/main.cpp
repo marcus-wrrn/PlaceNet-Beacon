@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <esp_heap_caps.h>
 
 #include "config.h"
 #include "logger.h"
@@ -13,22 +14,18 @@
 #include "tasks/pmu_task.h"
 #endif
 
-#ifdef DISPLAY_MODEL
-#include "DisplayModule.h"
-
-#endif
-#include "LoRaModule.h"
-#include "tasks/lora_task.h"
-#include "tasks/main_task.h"
-
 #ifdef HAS_GPS
 #include "GPSModule.h"
 #include "tasks/location_task.h"
 #endif
 
-#ifdef HAS_HTTP_SERVER
-#include "SDCardModule.h"
+#ifdef DISPLAY_MODEL
+#include "DisplayModule.h"
 #endif
+
+#include "LoRaModule.h"
+#include "tasks/lora_task.h"
+#include "tasks/main_task.h"
 
 static const char *TAG = "INIT";
 
@@ -242,6 +239,10 @@ void setup() {
 
     LOGI(TAG, "===========================================");
     LOGI(TAG, "All tasks spawned - setup complete");
+    LOGI(TAG, "Free heap: %u bytes", esp_get_free_heap_size());
+    LOGI(TAG, "Minimum free heap: %u bytes", esp_get_minimum_free_heap_size());
+    LOGI(TAG, "Free internal RAM: %u bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    LOGI(TAG, "Free PSRAM: %u bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     LOGI(TAG, "===========================================");
 }
 

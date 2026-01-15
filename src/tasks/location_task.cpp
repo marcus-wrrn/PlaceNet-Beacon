@@ -12,7 +12,7 @@ static const char* TAG = "LOCATION_TASK";
 QueueHandle_t locationUpdateQueue = nullptr;
 
 #define GPS_READ_INTERVAL_MS 5000
-#define GPS_READ_TIMEOUT_MS 5000
+#define GPS_READ_TIMEOUT_MS 10000
 
 void locationTask(void* pvParameters) {
     LocationTaskParams* params = static_cast<LocationTaskParams*>(pvParameters);
