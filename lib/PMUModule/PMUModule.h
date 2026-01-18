@@ -27,10 +27,6 @@ public:
      * @param irqPin GPIO pin for PMU interrupts
      */
     PMUModule(TwoWire& wire, int irqPin);
-
-    /**
-     * @brief Destructor - cleans up PMU and detaches interrupt
-     */
     ~PMUModule();
 
     // Non-copyable, non-movable
@@ -39,16 +35,7 @@ public:
     PMUModule(PMUModule&&) = delete;
     PMUModule& operator=(PMUModule&&) = delete;
 
-    /**
-     * @brief Initialize and configure the PMU
-     * @return true if PMU was detected and configured successfully
-     */
     bool initialize();
-
-    /**
-     * @brief Check if PMU is initialized
-     * @return true if initialized
-     */
     bool isInitialized() const { return initialized_; }
 
     /**
@@ -62,22 +49,8 @@ public:
      * @param buttonPressCallback Optional callback for button press events
      */
     void processEvents(void (*buttonPressCallback)(void) = nullptr);
-
-    /**
-     * @brief Check if PMU has pending interrupt
-     * @return true if interrupt flag is set
-     */
     bool hasInterrupt() const { return pmuInterrupt_; }
-
-    /**
-     * @brief Clear the interrupt flag
-     */
     void clearInterrupt() { pmuInterrupt_ = false; }
-
-    /**
-     * @brief Set the task handle for ISR notifications
-     * @param handle FreeRTOS task handle to notify on interrupt
-     */
     void setTaskHandle(TaskHandle_t handle) { pmuTaskHandle_ = handle; }
 
     /**

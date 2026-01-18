@@ -128,7 +128,6 @@ void PMUModule::configureAXP192() {
                   );
 }
 
-// Configure AXP2101
 void PMUModule::configureAXP2101() {
     // T-Beam S3 Supreme specific configuration
 
@@ -253,7 +252,6 @@ void PMUModule::logPowerChannels() {
     LOGI(TAG, "=========================================");
 }
 
-// Initialize PMU
 bool PMUModule::initialize() {
     if (initialized_) {
         LOGW(TAG, "PMU already initialized");

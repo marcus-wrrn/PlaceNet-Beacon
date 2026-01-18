@@ -8,14 +8,13 @@
 #include <freertos/queue.h>
 #include <cstdint>
 
-// Maximum packet size
 #define LORA_MAX_PACKET_SIZE 255
 
 struct LoRaPacket {
     uint8_t data[LORA_MAX_PACKET_SIZE];
     uint8_t length;
-    int16_t rssi;  // For received packets
-    float snr;     // For received packets
+    int16_t rssi;
+    float snr;
 };
 
 enum LoRaMode {
@@ -27,26 +26,9 @@ enum LoRaMode {
 
 class LoRaModule {
 public:
-    /**
-     * @brief Constructor
-     */
     LoRaModule();
-
-    /**
-     * @brief Destructor
-     */
     ~LoRaModule();
-
-    /**
-     * @brief Initialize the LoRa radio
-     * @return true if radio initialized successfully
-     */
     bool init();
-
-    /**
-     * @brief Check if module is initialized
-     * @return true if initialized
-     */
     bool isInitialized() const { return initialized_; }
 
     /**
@@ -78,10 +60,6 @@ public:
      */
     bool setMode(LoRaMode mode);
 
-    /**
-     * @brief Get current mode
-     * @return Current LoRa mode
-     */
     LoRaMode getMode() const { return mode_; }
 
     /**

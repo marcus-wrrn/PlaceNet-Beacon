@@ -36,7 +36,7 @@ bool LoRaModule::init() {
     LOGI(TAG, "Frequency: %.1f MHz, BW: %.1f kHz, SF: %d, CR: 4/%d, Power: %d dBm",
          frequency_, bandwidth_, spreadingFactor_, codingRate_, txPower_);
 
-    // TODO: make radio module dynamic
+    // TODO: make radio module dynamic depending on modem
     radio_ = new SX1262(new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN));
 
     if (!radio_) {
