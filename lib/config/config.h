@@ -86,6 +86,7 @@
 #define HAS_GPS
 #define HAS_DISPLAY
 #define HAS_PMU
+#define HAS_BLE
 #define __HAS_SPI1__
 #define HAS_SENSOR
 
@@ -196,6 +197,7 @@
 #define HAS_GPS
 // #define HAS_DISPLAY              // Skip for now - different driver needed
 // T-Deck has NO PMU - do not define HAS_PMU
+#define HAS_BLE
 #define HAS_BATTERY_ADC
 #define HAS_KEYBOARD
 #define HAS_TRACKBALL
@@ -217,13 +219,3 @@
 // #define LORA_MODE_BEACON    // Transmit beacon URL periodically
 
 #endif
-
-//=====================================================
-// WiFi & HTTP Server Configuration (All Boards)
-//=====================================================
-//#define HAS_HTTP_SERVER
-
-#define WIFI_SSID                   "YourNetworkName"
-#define WIFI_PASSWORD               "YourPassword"
-#define WIFI_CONNECT_TIMEOUT_MS     15000  // 15 seconds
-#define HTTP_SERVER_PORT            80
