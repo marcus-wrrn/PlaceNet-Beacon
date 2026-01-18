@@ -44,7 +44,8 @@ static GPSModule* g_gps = nullptr;
 #endif
 
 #ifdef HAS_BLE
-#include "BLECallbacks.h"
+#include "BLEModule.h"
+static BLEModule* g_ble = nullptr;
 #endif
 
 int pktCount = 0;
@@ -113,6 +114,18 @@ void setup() {
     }
 #endif
 
+#ifdef HAS_BLE
+    g_ble = new BLEModule();
+    if (!g_ble || !g_ble->init()) {
+        LOGE(TAG, "Failed to create or initialize BLEModule");
+        delete g_ble;
+        g_ble = nullptr;
+    } else {
+        g_ble->startAdvertising();
+        LOGI(TAG, "BLE initialized and advertising");
+    }
+#endif
+
 #ifdef HAS_HTTP_SERVER
     g_sdCard = new SDCardModule();
     if (!g_sdCard) {
@@ -158,7 +171,7 @@ void setup() {
     if (g_gps) {
         static LocationTaskParams locationParams;
         locationParams.gps = g_gps;
-        locationUpdateQueue = xQueueCreate(5, sizeof(GPSData));
+        locationTaskUpdateQueue = xQueueCreate(5, sizeof(GPSData));
         BaseType_t result = xTaskCreatePinnedToCore(
             locationTask,
             "Location",
@@ -170,7 +183,7 @@ void setup() {
         );
 
         if (result == pdPASS) {
-            LOGI(TAG, "Location task created on core 1 (priority 7)");
+            LOGI(TAG, "Location task created on core 1 (priority 9)");
         } else {
             LOGE(TAG, "Failed to create Location task");
         }
@@ -225,11 +238,16 @@ void setup() {
 #endif
 
     // Create main packet-receiving task
+    static MainTaskParams mainParams = {};
+#ifdef HAS_BLE
+    mainParams.ble = g_ble;
+#endif
+
     BaseType_t mainTaskResult = xTaskCreatePinnedToCore(
         mainTask,
         "MainTask",
         4096,
-        nullptr,
+        &mainParams,
         10,
         nullptr,
         0

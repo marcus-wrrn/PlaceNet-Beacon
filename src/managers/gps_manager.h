@@ -7,12 +7,11 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-
-extern QueueHandle_t locationUpdateQueue;
-
 class GPSManager {
 public:
-    GPSManager() : data_{}, gpsUpdated_(false), gpsDataIsNull_(true) {}
+    GPSManager(QueueHandle_t queue) : data_{}, gpsUpdated_(false), gpsDataIsNull_(true), locationQueue_(queue) {}
+
+    QueueHandle_t getQueue() const { return locationQueue_; }
 
     bool updateGPS();
     void logGPS(DisplayModule* display);
@@ -24,6 +23,7 @@ private:
     GPSData data_;
     bool gpsUpdated_;
     bool gpsDataIsNull_;
+    QueueHandle_t locationQueue_;
 };
 
 #endif

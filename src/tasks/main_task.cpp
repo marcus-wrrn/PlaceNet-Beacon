@@ -17,10 +17,23 @@
 #include "managers/gps_manager.h"
 #endif
 
+#ifdef HAS_BLE
+#include "BLEModule.h"
+#endif
+
 static const char* TAG = "MAIN";
 
 void mainTask(void* pvParameters) {
     LOGI(TAG, "Main task starting...");
+
+    MainTaskParams* params = static_cast<MainTaskParams*>(pvParameters);
+
+#ifdef HAS_BLE
+    BLEModule* ble = params ? params->ble : nullptr;
+    if (ble) {
+        LOGI(TAG, "BLE module available for requests");
+    }
+#endif
 
     if (loraUpdateQueue == nullptr) {
         LOGE(TAG, "ERROR: loraUpdateQueue is NULL!");
@@ -38,7 +51,7 @@ void mainTask(void* pvParameters) {
 #endif
 
 #ifdef HAS_GPS
-    GPSManager gpsManager;
+    GPSManager gpsManager(locationTaskUpdateQueue);
 #endif
 
     while (true) {
@@ -68,6 +81,12 @@ void mainTask(void* pvParameters) {
                 LOGI(TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
                      pktCount, pkt.rssi, pkt.snr, pkt.length);
             }
+
+#ifdef HAS_BLE
+            if (ble && ble->isConnected()) {
+                ble->notifyBeaconData(pkt.data, pkt.length);
+            }
+#endif
 
 #ifdef DISPLAY_MODEL
             display.clearBuffer();

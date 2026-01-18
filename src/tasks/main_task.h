@@ -8,8 +8,17 @@
 extern DisplayModule display;
 #endif
 
-extern QueueHandle_t loraUpdateQueue;
+#ifdef HAS_BLE
+class BLEModule;
+#endif
+ 
 extern int pktCount;
+
+struct MainTaskParams {
+#ifdef HAS_BLE
+    BLEModule* ble;
+#endif
+};
 
 /**
  * @brief Main task function - handles LoRa packet processing and display updates

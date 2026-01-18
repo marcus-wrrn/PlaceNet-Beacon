@@ -12,7 +12,7 @@ struct LocationTaskParams {
     GPSModule* gps;
 };
 
-extern QueueHandle_t locationUpdateQueue;
+extern QueueHandle_t locationTaskUpdateQueue;
 
 void locationTask(void* pvParameters);
 

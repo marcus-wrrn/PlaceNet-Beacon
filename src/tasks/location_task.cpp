@@ -9,7 +9,7 @@
 
 static const char* TAG = "LOCATION_TASK";
 
-QueueHandle_t locationUpdateQueue = nullptr;
+QueueHandle_t locationTaskUpdateQueue = nullptr;
 
 #define GPS_READ_INTERVAL_MS 5000
 #define GPS_READ_TIMEOUT_MS 10000
@@ -50,8 +50,8 @@ void locationTask(void* pvParameters) {
                 LOGI(TAG, "GPS fix valid (success #%lu)", successCount);
                 gps->logData(&data);
 
-                if (locationUpdateQueue != nullptr) {
-                    BaseType_t result = xQueueSend(locationUpdateQueue, &data, portMAX_DELAY);
+                if (locationTaskUpdateQueue != nullptr) {
+                    BaseType_t result = xQueueSend(locationTaskUpdateQueue, &data, portMAX_DELAY);
                     if (result == pdPASS) {
                         LOGI(TAG, "Location queued successfully to locationUpdateQueue");
                     } else {

@@ -7,7 +7,7 @@
 static const char* TAG = "GPS-MANAGER";
 
 bool GPSManager::updateGPS() {
-    if (locationUpdateQueue && xQueueReceive(locationUpdateQueue, &data_, 0) == pdPASS) {
+    if (locationQueue_ && xQueueReceive(locationQueue_, &data_, 0) == pdPASS) {
         LOGI(TAG, "GPS location updated: %.6f, %.6f (Sats: %d)",
                 data_.position.latitude, data_.position.longitude,
                 data_.metadata.satelliteCount);

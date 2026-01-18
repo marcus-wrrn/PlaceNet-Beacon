@@ -41,9 +41,9 @@ private:
     NimBLECharacteristic* beaconDataChar_;
     NimBLECharacteristic* beaconConfigChar_;
 
-    BLEServerCallbacks serverCallbacks_;
-    BLECharacteristicCallbacks charCallbacks_;
-    BLEDescriptorCallbacks descCallbacks_;
+    BeaconServerCallbacks serverCallbacks_;
+    BeaconCharacteristicCallbacks charCallbacks_;
+    BeaconDescriptorCallbacks descCallbacks_;
 
     bool createDeviceInfoService();
     bool createBeaconService();
