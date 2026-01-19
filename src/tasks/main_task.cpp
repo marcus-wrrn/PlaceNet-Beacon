@@ -16,20 +16,13 @@
 #include "GPSModule.h"
 #include "managers/gps_manager.h"
 #endif
-
-#ifdef HAS_BLE
 #include "BLEModule.h"
-#endif
 
 static const char* TAG = "MAIN";
 static MainTaskParams mainParams = {};
 
-#ifdef HAS_BLE
 bool setupMainTask(BLEModule* ble, uint32_t stackDepth) {
     mainParams.ble = ble;
-#else
-bool setupMainTask(uint32_t stackDepth) {
-#endif
     BaseType_t result = xTaskCreatePinnedToCore(
         mainTask,
         "MainTask",
@@ -108,11 +101,9 @@ void mainTask(void* pvParameters) {
                      pktCount, pkt.rssi, pkt.snr, pkt.length);
             }
 
-#ifdef HAS_BLE
             if (ble && ble->isConnected()) {
                 ble->notifyBeaconData(pkt.data, pkt.length);
             }
-#endif
 
 #ifdef DISPLAY_MODEL
             display.clearBuffer();

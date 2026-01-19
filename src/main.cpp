@@ -98,7 +98,6 @@ bool setupGPS() {
 }
 
 bool setupBLE() {
-#ifdef HAS_BLE
     g_ble = new BLEModule();
     if (!g_ble || !g_ble->init()) {
         LOGE(TAG, "Failed to create or initialize BLEModule");
@@ -108,9 +107,6 @@ bool setupBLE() {
     }
     g_ble->startAdvertising();
     LOGI(TAG, "BLE initialized and advertising");
-#else
-    LOGI(TAG, "No BLE configured");
-#endif
     return true;
 }
 

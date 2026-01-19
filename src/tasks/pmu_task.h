@@ -3,6 +3,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #ifdef HAS_PMU
+#include "PMUModule.h"
 
 extern QueueHandle_t pmuStateQueue;
 

@@ -23,7 +23,6 @@ namespace BoardUtility {
      * @brief Print chip information (wakeup reason, PSRAM, flash size, flash speed, model, revision, frequency, SDK version, compile date/time, MAC address)
      */
     void printChipInfo();
-
     void printWakeupReason();
 
     /**
