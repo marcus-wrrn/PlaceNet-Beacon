@@ -47,12 +47,10 @@ void mainTask(void* pvParameters) {
 
     MainTaskParams* params = static_cast<MainTaskParams*>(pvParameters);
 
-#ifdef HAS_BLE
     BLEModule* ble = params ? params->ble : nullptr;
     if (ble) {
         LOGI(TAG, "BLE module available for requests");
     }
-#endif
 
     if (loraUpdateQueue == nullptr) {
         LOGE(TAG, "ERROR: loraUpdateQueue is NULL!");
@@ -63,7 +61,10 @@ void mainTask(void* pvParameters) {
     LOGI(TAG, "Waiting for LoRa packets...");
 
     LoRaPacket pkt;
-    uint32_t loopCount = 0;
+    DisplayState currentState = {};
+    DisplayState lastDisplayedState = {};
+    TickType_t lastDisplayUpdate = 0;
+    const TickType_t displayUpdateInterval = pdMS_TO_TICKS(5000);
 
 #ifdef HAS_PMU
     PMUManager pmuManager;
@@ -74,25 +75,32 @@ void mainTask(void* pvParameters) {
 #endif
 
     while (true) {
-        loopCount++;
-
-        if (loopCount % 100 == 0) {
-            LOGI(TAG, "Loop iteration %lu, queue items waiting: %d",
-                 loopCount, uxQueueMessagesWaiting(loraUpdateQueue));
-        }
-
 #ifdef HAS_PMU
-        pmuManager.updatePMU();
+        if (pmuManager.updatePMU()) {
+            currentState.batteryVoltage = pmuManager.getState().battery_voltage;
+        }
 #endif
 
 #ifdef HAS_GPS
-        gpsManager.updateGPS();
+        if (gpsManager.updateGPS()) {
+            const GPSData& gpsData = gpsManager.getData();
+            currentState.latitude = gpsData.position.latitude;
+            currentState.longitude = gpsData.position.longitude;
+            currentState.satelliteCount = gpsData.metadata.satelliteCount;
+            currentState.altitude = gpsData.metadata.altitude;
+        }
 #endif
 
-        if (xQueueReceive(loraUpdateQueue, &pkt, pdMS_TO_TICKS(100))) {
+        while (xQueueReceive(loraUpdateQueue, &pkt, 0) == pdPASS) {
             pktCount++;
-            // TODO: Replace with an actual broadcast/receive test
             bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
+
+            currentState.packetCount = pktCount;
+            currentState.lastRssi = pkt.rssi;
+            currentState.lastSnr = pkt.snr;
+            currentState.lastPacketWasSent = isSentPacket;
+            memcpy(currentState.receivedData, pkt.data, pkt.length);
+            currentState.receivedData[pkt.length] = '\0';
 
             if (isSentPacket) {
                 LOGI(TAG, "Packet #%d sent\n%.*s", pktCount, pkt.length, (const char*)pkt.data);
@@ -104,24 +112,39 @@ void mainTask(void* pvParameters) {
             if (ble && ble->isConnected()) {
                 ble->notifyBeaconData(pkt.data, pkt.length);
             }
-
-#ifdef DISPLAY_MODEL
-            display.clearBuffer();
-            if (isSentPacket) {
-                display.drawLine("Packet #%d sent", pktCount);
-                display.drawLine("%.*s", pkt.length, (const char*)pkt.data);
-            } else {
-                display.drawLine("#%d, RSSI: %d, SNR: %.2f", pktCount, pkt.rssi, pkt.snr);
-                display.drawLine("%.*s", pkt.length, (const char*)pkt.data);
-            }
-#ifdef HAS_PMU
-            pmuManager.logPMU(&display);
-#endif
-#ifdef HAS_GPS
-            gpsManager.logGPS(&display);
-#endif
-            display.sendBuffer();
-#endif
         }
+
+        TickType_t now = xTaskGetTickCount();
+        if (now - lastDisplayUpdate >= displayUpdateInterval) {
+            if (currentState != lastDisplayedState) {
+#ifdef DISPLAY_MODEL
+                display.clearBuffer();
+
+                if (currentState.packetCount > 0) {
+                    if (currentState.lastPacketWasSent) {
+                        display.drawLine("Packet #%d sent", currentState.packetCount);
+                    } else {
+                        display.drawLine("#%d, RSSI: %d, SNR: %.2f",
+                            currentState.packetCount, currentState.lastRssi, currentState.lastSnr);
+                        display.drawLine((char*)currentState.receivedData);
+                    }
+                }
+
+#ifdef HAS_PMU
+                pmuManager.logPMU(&display);
+#endif
+
+#ifdef HAS_GPS
+                gpsManager.logGPS(&display);
+#endif
+
+                display.sendBuffer();
+#endif
+                lastDisplayedState = currentState;
+            }
+            lastDisplayUpdate = now;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

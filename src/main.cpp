@@ -43,10 +43,8 @@ static LoRaModule* g_lora = nullptr;
 static GPSModule* g_gps = nullptr;
 #endif
 
-#ifdef HAS_BLE
 #include "BLEModule.h"
 static BLEModule* g_ble = nullptr;
-#endif
 
 int pktCount = 0;
 
