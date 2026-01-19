@@ -161,30 +161,6 @@ void initializeTasks() {
         setupLoRaTask(g_lora, 4096);
     }
 
-#ifdef HAS_HTTP_SERVER
-    if (g_sdCard && g_httpServer) {
-        static HTTPServerTaskParams httpParams;
-        httpParams.sdCard = g_sdCard;
-        httpParams.httpServer = g_httpServer;
-
-        BaseType_t result = xTaskCreatePinnedToCore(
-            httpServerTask,
-            "HTTP",
-            8192,
-            &httpParams,
-            7,
-            nullptr,
-            1
-        );
-
-        if (result == pdPASS) {
-            LOGI(TAG, "HTTP server task created on core 1 (priority 7)");
-        } else {
-            LOGE(TAG, "Failed to create HTTP server task");
-        }
-    }
-#endif
-
 #ifdef HAS_BLE
     setupMainTask(g_ble, 4096);
 #else
