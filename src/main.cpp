@@ -151,24 +151,7 @@ void initializeTasks() {
 
 #ifdef HAS_PMU
     if (g_pmu) {
-        pmuStateQueue = xQueueCreate(5, sizeof(PMUState));
-        TaskHandle_t pmuTaskHandle = nullptr;
-        BaseType_t result = xTaskCreatePinnedToCore(
-            pmuTask,
-            "PMU",
-            2048,
-            g_pmu,
-            configMAX_PRIORITIES - 1,
-            &pmuTaskHandle,
-            0
-        );
-
-        if (result == pdPASS && pmuTaskHandle != nullptr) {
-            g_pmu->setTaskHandle(pmuTaskHandle);
-            LOGI(TAG, "PMU task created on core 0 (priority %d)", configMAX_PRIORITIES - 1);
-        } else {
-            LOGE(TAG, "Failed to create PMU task");
-        }
+        setupPMUTask(g_pmu, 2048);
     }
 #endif
 
@@ -176,46 +159,12 @@ void initializeTasks() {
 
 #ifdef HAS_GPS
     if (g_gps) {
-        static LocationTaskParams locationParams;
-        locationParams.gps = g_gps;
-        locationTaskUpdateQueue = xQueueCreate(5, sizeof(GPSData));
-        BaseType_t result = xTaskCreatePinnedToCore(
-            locationTask,
-            "Location",
-            4096,
-            &locationParams,
-            9,
-            nullptr,
-            1
-        );
-
-        if (result == pdPASS) {
-            LOGI(TAG, "Location task created on core 1 (priority 9)");
-        } else {
-            LOGE(TAG, "Failed to create Location task");
-        }
+        setupLocationTask(g_gps, 4096);
     }
 #endif
 
     if (g_lora) {
-        static LoRaTaskParams loraParams;
-        loraParams.lora = g_lora;
-        loraUpdateQueue = xQueueCreate(10, sizeof(LoRaPacket));
-        BaseType_t result = xTaskCreatePinnedToCore(
-            loraTask,
-            "LoRa",
-            4096,
-            &loraParams,
-            8,
-            nullptr,
-            1
-        );
-
-        if (result == pdPASS) {
-            LOGI(TAG, "LoRa task created on core 1 (priority 8)");
-        } else {
-            LOGE(TAG, "Failed to create LoRa task");
-        }
+        setupLoRaTask(g_lora, 4096);
     }
 
 #ifdef HAS_HTTP_SERVER
@@ -242,26 +191,11 @@ void initializeTasks() {
     }
 #endif
 
-    static MainTaskParams mainParams = {};
 #ifdef HAS_BLE
-    mainParams.ble = g_ble;
+    setupMainTask(g_ble, 4096);
+#else
+    setupMainTask(4096);
 #endif
-
-    BaseType_t mainTaskResult = xTaskCreatePinnedToCore(
-        mainTask,
-        "MainTask",
-        4096,
-        &mainParams,
-        10,
-        nullptr,
-        0
-    );
-
-    if (mainTaskResult == pdPASS) {
-        LOGI(TAG, "Main task created on core 0 (priority 10)");
-    } else {
-        LOGE(TAG, "Failed to create main task");
-    }
 
     LOGI(TAG, "All tasks spawned");
 }

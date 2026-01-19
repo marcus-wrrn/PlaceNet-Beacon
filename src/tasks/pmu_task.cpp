@@ -10,6 +10,41 @@
 static const char* TAG = "PMU_TASK";
 QueueHandle_t pmuStateQueue = nullptr;
 
+bool setupPMUTask(PMUModule* pmu, uint32_t stackDepth) {
+    if (!pmu) {
+        LOGE(TAG, "PMU module pointer is null");
+        return false;
+    }
+
+    pmuStateQueue = xQueueCreate(5, sizeof(PMUState));
+    if (!pmuStateQueue) {
+        LOGE(TAG, "Failed to create PMU state queue");
+        return false;
+    }
+
+    TaskHandle_t pmuTaskHandle = nullptr;
+    BaseType_t result = xTaskCreatePinnedToCore(
+        pmuTask,
+        "PMU",
+        stackDepth,
+        pmu,
+        configMAX_PRIORITIES - 1,
+        &pmuTaskHandle,
+        0
+    );
+
+    if (result == pdPASS && pmuTaskHandle != nullptr) {
+        pmu->setTaskHandle(pmuTaskHandle);
+        LOGI(TAG, "PMU task created on core 0 (priority %d)", configMAX_PRIORITIES - 1);
+        return true;
+    } else {
+        LOGE(TAG, "Failed to create PMU task");
+        vQueueDelete(pmuStateQueue);
+        pmuStateQueue = nullptr;
+        return false;
+    }
+}
+
 void pmuTask(void* pvParameters) {
     PMUModule* pmu = static_cast<PMUModule*>(pvParameters);
 

@@ -8,6 +8,42 @@
 static const char* TAG = "LORA_TASK";
 
 QueueHandle_t loraUpdateQueue = nullptr;
+static LoRaTaskParams loraParams;
+
+bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth) {
+    if (!lora) {
+        LOGE(TAG, "LoRa module pointer is null");
+        return false;
+    }
+
+    loraUpdateQueue = xQueueCreate(10, sizeof(LoRaPacket));
+    if (!loraUpdateQueue) {
+        LOGE(TAG, "Failed to create LoRa update queue");
+        return false;
+    }
+
+    loraParams.lora = lora;
+
+    BaseType_t result = xTaskCreatePinnedToCore(
+        loraTask,
+        "LoRa",
+        stackDepth,
+        &loraParams,
+        8,
+        nullptr,
+        1
+    );
+
+    if (result == pdPASS) {
+        LOGI(TAG, "LoRa task created on core 1 (priority 8)");
+        return true;
+    } else {
+        LOGE(TAG, "Failed to create LoRa task");
+        vQueueDelete(loraUpdateQueue);
+        loraUpdateQueue = nullptr;
+        return false;
+    }
+}
 
 #ifdef LORA_MODE_BEACON
 #define BEACON_URL "https://placenet.local"

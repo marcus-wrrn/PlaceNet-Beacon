@@ -22,6 +22,32 @@
 #endif
 
 static const char* TAG = "MAIN";
+static MainTaskParams mainParams = {};
+
+#ifdef HAS_BLE
+bool setupMainTask(BLEModule* ble, uint32_t stackDepth) {
+    mainParams.ble = ble;
+#else
+bool setupMainTask(uint32_t stackDepth) {
+#endif
+    BaseType_t result = xTaskCreatePinnedToCore(
+        mainTask,
+        "MainTask",
+        stackDepth,
+        &mainParams,
+        10,
+        nullptr,
+        0
+    );
+
+    if (result == pdPASS) {
+        LOGI(TAG, "Main task created on core 0 (priority 10)");
+        return true;
+    } else {
+        LOGE(TAG, "Failed to create main task");
+        return false;
+    }
+}
 
 void mainTask(void* pvParameters) {
     LOGI(TAG, "Main task starting...");

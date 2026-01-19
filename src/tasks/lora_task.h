@@ -25,3 +25,4 @@ extern QueueHandle_t loraUpdateQueue;
  * @param pvParameters Pointer to LoRaTaskParams struct
  */
 void loraTask(void* pvParameters);
+bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth);

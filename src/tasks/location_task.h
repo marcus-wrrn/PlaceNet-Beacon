@@ -15,5 +15,6 @@ struct LocationTaskParams {
 extern QueueHandle_t locationTaskUpdateQueue;
 
 void locationTask(void* pvParameters);
+bool setupLocationTask(GPSModule* gps, uint32_t stackDepth);
 
 #endif // HAS_GPS

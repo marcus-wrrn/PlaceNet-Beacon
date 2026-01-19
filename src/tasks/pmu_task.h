@@ -15,5 +15,6 @@ extern QueueHandle_t pmuStateQueue;
  * @param pvParameters Pointer to PMUModule instance
  */
 void pmuTask(void* pvParameters);
+bool setupPMUTask(PMUModule* pmu, uint32_t stackDepth);
 
 #endif

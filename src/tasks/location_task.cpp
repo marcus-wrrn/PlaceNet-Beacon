@@ -10,6 +10,42 @@
 static const char* TAG = "LOCATION_TASK";
 
 QueueHandle_t locationTaskUpdateQueue = nullptr;
+static LocationTaskParams locationParams;
+
+bool setupLocationTask(GPSModule* gps, uint32_t stackDepth) {
+    if (!gps) {
+        LOGE(TAG, "GPS module pointer is null");
+        return false;
+    }
+
+    locationTaskUpdateQueue = xQueueCreate(5, sizeof(GPSData));
+    if (!locationTaskUpdateQueue) {
+        LOGE(TAG, "Failed to create location task update queue");
+        return false;
+    }
+
+    locationParams.gps = gps;
+
+    BaseType_t result = xTaskCreatePinnedToCore(
+        locationTask,
+        "Location",
+        stackDepth,
+        &locationParams,
+        9,
+        nullptr,
+        1
+    );
+
+    if (result == pdPASS) {
+        LOGI(TAG, "Location task created on core 1 (priority 9)");
+        return true;
+    } else {
+        LOGE(TAG, "Failed to create Location task");
+        vQueueDelete(locationTaskUpdateQueue);
+        locationTaskUpdateQueue = nullptr;
+        return false;
+    }
+}
 
 #define GPS_READ_INTERVAL_MS 5000
 #define GPS_READ_TIMEOUT_MS 10000

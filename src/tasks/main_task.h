@@ -31,3 +31,9 @@ struct MainTaskParams {
  * @param pvParameters Unused (nullptr)
  */
 void mainTask(void* pvParameters);
+
+#ifdef HAS_BLE
+bool setupMainTask(BLEModule* ble, uint32_t stackDepth);
+#else
+bool setupMainTask(uint32_t stackDepth);
+#endif
