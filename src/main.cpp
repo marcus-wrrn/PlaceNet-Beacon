@@ -55,89 +55,98 @@ static SDCardModule* g_sdCard = nullptr;
 static HTTPServerModule* g_httpServer = nullptr;
 #endif
 
-void setup() {
-    Serial.begin(115200);
-    delay(500);
-
-    Serial.println();
-    LOGI(TAG, "===========================================");
-    LOGI(TAG, "Beacon");
-    LOGI(TAG, "===========================================");
-
-    BoardUtility::printChipInfo();
-    BoardUtility::printWakeupReason();
-
-#ifdef BOARD_POWERON_PIN
-    pinMode(BOARD_POWERON_PIN, OUTPUT);
-    digitalWrite(BOARD_POWERON_PIN, HIGH);
-    LOGI(TAG, "Peripheral power enabled (GPIO %d)", BOARD_POWERON_PIN);
-    delay(100);
-#endif
-
-#ifdef I2C1_SDA
-    Wire1.begin(I2C1_SDA, I2C1_SCL);
-    LOGI(TAG, "Scan Wire1 (I2C1)...");
-    BoardUtility::scanI2C(&Wire1);
-#endif
-
+bool setupPMU() {
 #ifdef HAS_PMU
     g_pmu = new PMUModule(PMU_WIRE_PORT, PMU_IRQ);
     if (!g_pmu->initialize()) {
         LOGE(TAG, "PMU initialization failed!");
         delete g_pmu;
         g_pmu = nullptr;
-    } else {
-        LOGI(TAG, "PMU initialized successfully");
+        return false;
     }
+    LOGI(TAG, "PMU initialized successfully");
+#else
+    LOGI(TAG, "No PMU configured");
 #endif
+    return true;
+}
 
-    delay(100);
-
-#ifdef I2C_SDA
-    Wire.begin(I2C_SDA, I2C_SCL);
-    LOGI(TAG, "Scan Wire (I2C0)...");
-    BoardUtility::scanI2C(&Wire);
-#endif
-
-    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
-    LOGI(TAG, "SPI bus initialized");
-
+bool setupLoRa() {
     g_lora = new LoRaModule();
     if (!g_lora) {
         LOGE(TAG, "Failed to create LoRaModule");
+        return false;
     }
+    LOGI(TAG, "LoRa module created successfully");
+    return true;
+}
 
+bool setupGPS() {
 #ifdef HAS_GPS
     g_gps = new GPSModule();
     if (!g_gps || !g_gps->init()) {
         LOGE(TAG, "Failed to create or initialize GPSModule");
+        delete g_gps;
+        g_gps = nullptr;
+        return false;
     }
+    LOGI(TAG, "GPS initialized successfully");
+#else
+    LOGI(TAG, "No GPS configured");
 #endif
+    return true;
+}
 
+bool setupBLE() {
 #ifdef HAS_BLE
     g_ble = new BLEModule();
     if (!g_ble || !g_ble->init()) {
         LOGE(TAG, "Failed to create or initialize BLEModule");
         delete g_ble;
         g_ble = nullptr;
-    } else {
-        g_ble->startAdvertising();
-        LOGI(TAG, "BLE initialized and advertising");
+        return false;
     }
+    g_ble->startAdvertising();
+    LOGI(TAG, "BLE initialized and advertising");
+#else
+    LOGI(TAG, "No BLE configured");
 #endif
+    return true;
+}
 
+bool setupDisplay() {
+#ifdef DISPLAY_MODEL
+    display.init();
+    LOGI(TAG, "Display initialized successfully");
+#else
+    LOGI(TAG, "No display configured");
+#endif
+    return true;
+}
+
+bool setupHTTPServer() {
 #ifdef HAS_HTTP_SERVER
     g_sdCard = new SDCardModule();
     if (!g_sdCard) {
         LOGE(TAG, "Failed to create SDCardModule");
-    } else {
-        g_httpServer = new HTTPServerModule(g_sdCard);
-        if (!g_httpServer) {
-            LOGE(TAG, "Failed to create HTTPServerModule");
-        }
+        return false;
     }
-#endif
 
+    g_httpServer = new HTTPServerModule(g_sdCard);
+    if (!g_httpServer) {
+        LOGE(TAG, "Failed to create HTTPServerModule");
+        delete g_sdCard;
+        g_sdCard = nullptr;
+        return false;
+    }
+    LOGI(TAG, "HTTP server initialized successfully");
+#else
+    LOGI(TAG, "No HTTP server configured");
+#endif
+    return true;
+}
+
+void initializeTasks() {
     LOGI(TAG, "Spawning FreeRTOS tasks...");
 
 #ifdef HAS_PMU
@@ -163,9 +172,7 @@ void setup() {
     }
 #endif
 
-#ifdef DISPLAY_MODEL
-    display.init();
-#endif
+    setupDisplay();
 
 #ifdef HAS_GPS
     if (g_gps) {
@@ -211,8 +218,6 @@ void setup() {
         }
     }
 
-
-
 #ifdef HAS_HTTP_SERVER
     if (g_sdCard && g_httpServer) {
         static HTTPServerTaskParams httpParams;
@@ -237,7 +242,6 @@ void setup() {
     }
 #endif
 
-    // Create main packet-receiving task
     static MainTaskParams mainParams = {};
 #ifdef HAS_BLE
     mainParams.ble = g_ble;
@@ -259,8 +263,55 @@ void setup() {
         LOGE(TAG, "Failed to create main task");
     }
 
+    LOGI(TAG, "All tasks spawned");
+}
+
+void setup() {
+    Serial.begin(115200);
+    delay(500);
+
+    Serial.println();
     LOGI(TAG, "===========================================");
-    LOGI(TAG, "All tasks spawned - setup complete");
+    LOGI(TAG, "Beacon");
+    LOGI(TAG, "===========================================");
+
+    BoardUtility::printChipInfo();
+    BoardUtility::printWakeupReason();
+
+#ifdef BOARD_POWERON_PIN
+    pinMode(BOARD_POWERON_PIN, OUTPUT);
+    digitalWrite(BOARD_POWERON_PIN, HIGH);
+    LOGI(TAG, "Peripheral power enabled (GPIO %d)", BOARD_POWERON_PIN);
+    delay(100);
+#endif
+
+#ifdef I2C1_SDA
+    Wire1.begin(I2C1_SDA, I2C1_SCL);
+    LOGI(TAG, "Scan Wire1 (I2C1)...");
+    BoardUtility::scanI2C(&Wire1);
+#endif
+
+    setupPMU();
+    delay(100);
+
+#ifdef I2C_SDA
+    Wire.begin(I2C_SDA, I2C_SCL);
+    LOGI(TAG, "Scan Wire (I2C0)...");
+    BoardUtility::scanI2C(&Wire);
+#endif
+
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+    LOGI(TAG, "SPI bus initialized");
+
+    setupLoRa();
+    setupGPS();
+    setupBLE();
+    setupHTTPServer();
+
+    initializeTasks();
+
+    LOGI(TAG, "===========================================");
+    LOGI(TAG, "Setup complete");
     LOGI(TAG, "Free heap: %u bytes", esp_get_free_heap_size());
     LOGI(TAG, "Minimum free heap: %u bytes", esp_get_minimum_free_heap_size());
     LOGI(TAG, "Free internal RAM: %u bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
