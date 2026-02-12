@@ -1,0 +1,20 @@
+NetworkModule - WiFi and MQTT for PlaceNet-Beacon
+
+This module provides WiFi connectivity and MQTT publish/subscribe functionality
+for ESP32-S3 based PlaceNet-Beacon devices.
+
+Features:
+- WiFi STA mode connection with automatic reconnection
+- MQTT client with authentication support
+- Message callback system for handling incoming MQTT messages
+- Event-driven connection status tracking
+- Thread-safe event groups for status monitoring
+
+Usage:
+1. Initialize WiFi connection
+2. Initialize MQTT broker connection (optional authentication)
+3. Subscribe to topics and set message callback
+4. Call loop() periodically to maintain connections
+5. Publish messages as needed
+
+See examples in src/tasks/network_task.cpp
