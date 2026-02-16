@@ -12,7 +12,9 @@ NetworkModule::NetworkModule()
       messageCallback(nullptr),
       mqttPort(1883),
       mqttHasAuth(false),
-      wifiRetryCount(0)
+      wifiRetryCount(0),
+      wifiEnabled(false),
+      mqttEnabled(false)
 {
     instance = this;
     eventGroup = xEventGroupCreate();
@@ -47,6 +49,7 @@ bool NetworkModule::initWiFi(const char* ssid, const char* password) {
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
+    wifiEnabled = true;
 
     int maxWait = 10;
     int count = 0;
@@ -99,6 +102,7 @@ bool NetworkModule::initMQTT(const char* broker, uint16_t port, const char* clie
 
     mqttClient->setServer(broker, port);
     mqttClient->setCallback(mqttCallbackWrapper);
+    mqttEnabled = true;
 
     reconnectMQTT();
 
@@ -115,6 +119,14 @@ bool NetworkModule::isMQTTConnected() {
     if (!eventGroup) return false;
     EventBits_t bits = xEventGroupGetBits(eventGroup);
     return (bits & MQTT_CONNECTED_BIT) != 0;
+}
+
+bool NetworkModule::isWiFiEnabled() {
+    return wifiEnabled;
+}
+
+bool NetworkModule::isMQTTEnabled() {
+    return mqttEnabled;
 }
 
 void NetworkModule::reconnectWiFi() {
@@ -278,6 +290,7 @@ void NetworkModule::handleMQTTMessage(char* topic, byte* payload, unsigned int l
 
 void NetworkModule::enableWiFi() {
     LOGI(TAG, "Enabling WiFi...");
+    wifiEnabled = true;
     WiFi.mode(WIFI_STA);
     WiFi.begin(wifiSsid, wifiPassword);
 
@@ -301,6 +314,7 @@ void NetworkModule::enableWiFi() {
 
 void NetworkModule::disableWiFi() {
     LOGI(TAG, "Disabling WiFi...");
+    wifiEnabled = false;
 
     if (mqttClient && mqttClient->connected()) {
         disableMQTT();
@@ -321,11 +335,13 @@ void NetworkModule::enableMQTT() {
     }
 
     LOGI(TAG, "Enabling MQTT...");
+    mqttEnabled = true;
     reconnectMQTT();
 }
 
 void NetworkModule::disableMQTT() {
     LOGI(TAG, "Disabling MQTT...");
+    mqttEnabled = false;
 
     if (mqttClient && mqttClient->connected()) {
         mqttClient->disconnect();

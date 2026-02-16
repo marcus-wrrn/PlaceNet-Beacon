@@ -59,3 +59,4 @@ struct DisplayState {
 void mainTask(void* pvParameters);
 
 bool setupMainTask(BLEModule* ble, uint32_t stackDepth);
+bool setupMainTask(uint32_t stackDepth);

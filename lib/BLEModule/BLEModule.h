@@ -21,6 +21,8 @@ public:
 
     bool init();
     bool isInitialized() const { return initialized_; }
+    bool isEnabled() const { return enabled_; }
+    void setEnabled(bool enabled) { enabled_ = enabled; }
 
     void startAdvertising();
     void stopAdvertising();
@@ -35,6 +37,7 @@ public:
 
 private:
     bool initialized_;
+    bool enabled_;
     NimBLEServer* server_;
     NimBLEService* deviceInfoService_;
     NimBLEService* beaconService_;

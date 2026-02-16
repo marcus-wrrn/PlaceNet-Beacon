@@ -42,6 +42,12 @@ public:
     // Check if MQTT client is currently connected via event group bits
     bool isMQTTConnected();
 
+    // Check if WiFi is enabled (should attempt connections)
+    bool isWiFiEnabled();
+
+    // Check if MQTT is enabled (should attempt connections)
+    bool isMQTTEnabled();
+
     // Publish MQTT message to specified topic with optional QoS and retain flag
     bool publishMessage(const char* topic, const char* message, int qos = 0, bool retain = false);
 
@@ -92,6 +98,8 @@ private:
     char wifiSsid[32];
     char wifiPassword[64];
     int wifiRetryCount;
+    bool wifiEnabled;
+    bool mqttEnabled;
 
     static void mqttCallbackWrapper(char* topic, byte* payload, unsigned int length);
     static NetworkModule* instance;

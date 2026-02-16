@@ -5,6 +5,7 @@ static const char* TAG = "BLE";
 
 BLEModule::BLEModule()
     : initialized_(false)
+    , enabled_(true)
     , server_(nullptr)
     , deviceInfoService_(nullptr)
     , beaconService_(nullptr)
@@ -19,6 +20,11 @@ BLEModule::~BLEModule() {
 }
 
 bool BLEModule::init() {
+    if (!enabled_) {
+        LOGI(TAG, "BLE disabled, skipping initialization");
+        return false;
+    }
+
     if (initialized_) {
         LOGW(TAG, "Already initialized");
         return true;
