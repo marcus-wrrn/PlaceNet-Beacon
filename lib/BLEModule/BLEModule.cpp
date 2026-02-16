@@ -3,14 +3,23 @@
 
 static const char* TAG = "BLE";
 
-BLEModule::BLEModule()
+BLEModule::BLEModule() : BLEModule(true) {}
+
+BLEModule::BLEModule(bool isenabled)
     : initialized_(false)
-    , enabled_(true)
+    , enabled_(isenabled)
     , server_(nullptr)
     , deviceInfoService_(nullptr)
     , beaconService_(nullptr)
+    , wifiService_(nullptr)
     , beaconDataChar_(nullptr)
-    , beaconConfigChar_(nullptr) {
+    , beaconConfigChar_(nullptr)
+    , wifiSsidChar_(nullptr)
+    , wifiPasswordChar_(nullptr)
+    , wifiStatusChar_(nullptr)
+    , wifiCreds_{}
+    , wifiCredsCallback_(nullptr) {
+    wifiCharCallbacks_.setBLEModule(this);
 }
 
 BLEModule::~BLEModule() {
@@ -50,13 +59,20 @@ bool BLEModule::init() {
         return false;
     }
 
+    if (!createWiFiService()) {
+        LOGE(TAG, "Failed to create WiFi provisioning service");
+        return false;
+    }
+
     deviceInfoService_->start();
     beaconService_->start();
+    wifiService_->start();
 
     NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
     advertising->setName(BLE_DEVICE_NAME);
     advertising->addServiceUUID(deviceInfoService_->getUUID());
     advertising->addServiceUUID(beaconService_->getUUID());
+    advertising->addServiceUUID(wifiService_->getUUID());
     advertising->enableScanResponse(true);
 
     initialized_ = true;
@@ -164,4 +180,51 @@ std::string BLEModule::getBeaconConfig() const {
         return "";
     }
     return beaconConfigChar_->getValue();
+}
+
+bool BLEModule::createWiFiService() {
+    wifiService_ = server_->createService(SERVICE_UUID_WIFI);
+    if (!wifiService_) {
+        return false;
+    }
+
+    wifiSsidChar_ = wifiService_->createCharacteristic(
+        CHAR_UUID_WIFI_SSID,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+    );
+    wifiSsidChar_->setCallbacks(&wifiCharCallbacks_);
+
+    wifiPasswordChar_ = wifiService_->createCharacteristic(
+        CHAR_UUID_WIFI_PASSWORD,
+        NIMBLE_PROPERTY::WRITE
+    );
+    wifiPasswordChar_->setCallbacks(&wifiCharCallbacks_);
+
+    wifiStatusChar_ = wifiService_->createCharacteristic(
+        CHAR_UUID_WIFI_STATUS,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
+    );
+    wifiStatusChar_->setValue("disconnected");
+
+    return true;
+}
+
+void BLEModule::setWiFiCredentialsCallback(WiFiCredentialsCallback callback) {
+    wifiCredsCallback_ = callback;
+}
+
+bool BLEModule::hasPendingWiFiCredentials() const {
+    return wifiCreds_.pending;
+}
+
+WiFiCredentials BLEModule::getWiFiCredentials() {
+    WiFiCredentials creds = wifiCreds_;
+    wifiCreds_.pending = false;
+    return creds;
+}
+
+void BLEModule::setWiFiStatus(const char* status) {
+    if (!initialized_ || !wifiStatusChar_) return;
+    wifiStatusChar_->setValue(status);
+    wifiStatusChar_->notify();
 }

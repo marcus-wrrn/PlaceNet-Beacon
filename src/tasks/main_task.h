@@ -10,9 +10,7 @@
 extern DisplayModule display;
 #endif
 
-#ifdef HAS_BLE
 class BLEModule;
-#endif
 
 extern int pktCount;
 
@@ -59,4 +57,3 @@ struct DisplayState {
 void mainTask(void* pvParameters);
 
 bool setupMainTask(BLEModule* ble, uint32_t stackDepth);
-bool setupMainTask(uint32_t stackDepth);

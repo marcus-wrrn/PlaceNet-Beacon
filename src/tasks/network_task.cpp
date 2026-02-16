@@ -10,40 +10,53 @@
 static const char* TAG = "NETWORK_TASK";
 
 static WebServer server(80);
-static const char* apSSID = "PlaceNet-Beacon";
+static const char* staSSID = "";
+static const char* staPassword = "";
 static const char* mdnsBase = "beacon";
 static char resolvedHostname[32] = "";
 
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
     switch (event) {
-        case ARDUINO_EVENT_WIFI_AP_START:
-            LOGI(TAG, "WiFi AP started");
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+            LOGI(TAG, "Connected to WiFi");
             break;
-        case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
-            LOGI(TAG, "Station connected to AP");
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            LOGI(TAG, "Got IP: %s", WiFi.localIP().toString().c_str());
             break;
-        case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
-            LOGI(TAG, "Station disconnected from AP");
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            LOGW(TAG, "Disconnected from WiFi, reconnecting...");
+            WiFi.reconnect();
             break;
         default:
             break;
     }
 }
 
-static bool startWiFiAP() {
+static bool connectWiFi() {
     WiFi.onEvent(onWiFiEvent);
-    WiFi.mode(WIFI_AP);
-    if (!WiFi.softAP(apSSID)) {
-        LOGE(TAG, "Failed to start WiFi AP");
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(staSSID, staPassword);
+
+    LOGI(TAG, "Connecting to WiFi SSID='%s'...", staSSID);
+
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        LOGE(TAG, "Failed to connect to WiFi");
         return false;
     }
-    LOGI(TAG, "WiFi AP started: SSID='%s' IP=%s", apSSID, WiFi.softAPIP().toString().c_str());
+
+    LOGI(TAG, "WiFi connected: IP=%s", WiFi.localIP().toString().c_str());
     return true;
 }
 
 static bool startMDNS() {
     if (MDNS.begin(mdnsBase)) {
         snprintf(resolvedHostname, sizeof(resolvedHostname), "%s", mdnsBase);
+        MDNS.addService("http", "tcp", 80);
         LOGI(TAG, "mDNS started: %s.local", resolvedHostname);
         return true;
     }
@@ -53,12 +66,13 @@ static bool startMDNS() {
         snprintf(candidate, sizeof(candidate), "%s-%d", mdnsBase, i);
         if (MDNS.begin(candidate)) {
             snprintf(resolvedHostname, sizeof(resolvedHostname), "%s", candidate);
+            MDNS.addService("http", "tcp", 80);
             LOGI(TAG, "mDNS started: %s.local", resolvedHostname);
             return true;
         }
     }
 
-    LOGW(TAG, "mDNS failed, AP still reachable via IP");
+    LOGW(TAG, "mDNS failed, still reachable via IP");
     return false;
 }
 
@@ -67,7 +81,7 @@ static void handleRoot() {
     uint8_t mac[6];
     esp_efuse_mac_get_default(mac);
 
-    String ip = WiFi.softAPIP().toString();
+    String ip = WiFi.localIP().toString();
     String hostname = strlen(resolvedHostname) > 0
         ? String(resolvedHostname) + ".local"
         : "N/A";
@@ -91,7 +105,8 @@ static void handleRoot() {
         "<tr><td>Device</td><td>" + String(BOARD_VARIANT_NAME) + "</td></tr>"
         "<tr><td>MAC</td><td>" + String(macStr) + "</td></tr>"
         "<tr><td>IP</td><td>" + ip + "</td></tr>"
-        "<tr><td>WiFi Mode</td><td>AP</td></tr>"
+        "<tr><td>WiFi Mode</td><td>STA</td></tr>"
+        "<tr><td>SSID</td><td>" + String(staSSID) + "</td></tr>"
         "<tr><td>Hostname</td><td>" + hostname + "</td></tr>"
         "</table></body></html>";
 
@@ -99,15 +114,11 @@ static void handleRoot() {
 }
 
 bool setupNetworkTask(uint32_t stackDepth) {
-    if (!startWiFiAP()) {
+    if (!connectWiFi()) {
         return false;
     }
 
     startMDNS();
-
-    server.on("/", handleRoot);
-    server.begin();
-    LOGI(TAG, "HTTP server started on port 80");
 
     BaseType_t result = xTaskCreatePinnedToCore(
         networkTask,
@@ -130,13 +141,18 @@ bool setupNetworkTask(uint32_t stackDepth) {
 
 void networkTask(void* pvParameters) {
     LOGI(TAG, "Network task started");
+
+    server.on("/", handleRoot);
+    server.begin();
+    LOGI(TAG, "HTTP server started on port 80");
+
     uint32_t lastDebugPrint = 0;
     while (1) {
         server.handleClient();
 
         uint32_t now = millis();
         if (now - lastDebugPrint > 30000) {
-            LOGI(TAG, "Network task alive, AP clients: %d", WiFi.softAPgetStationNum());
+            LOGI(TAG, "Network task alive, IP: %s, RSSI: %d", WiFi.localIP().toString().c_str(), WiFi.RSSI());
             lastDebugPrint = now;
         }
 

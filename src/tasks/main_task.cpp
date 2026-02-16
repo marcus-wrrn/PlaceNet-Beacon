@@ -42,20 +42,16 @@ bool setupMainTask(BLEModule* ble, uint32_t stackDepth) {
     }
 }
 
-bool setupMainTask(uint32_t stackDepth) {
-    return setupMainTask(nullptr, stackDepth);
-}
-
 void mainTask(void* pvParameters) {
     LOGI(TAG, "Main task starting...");
 
     MainTaskParams* params = static_cast<MainTaskParams*>(pvParameters);
+    BLEModule* ble = params->ble;
 
-    BLEModule* ble = params ? params->ble : nullptr;
-    if (ble && ble->isEnabled()) {
-        LOGI(TAG, "BLE module available for requests");
+    if (ble->isEnabled()) {
+        LOGI(TAG, "BLE module enabled");
     } else {
-        LOGI(TAG, "BLE module disabled or unavailable");
+        LOGI(TAG, "BLE module disabled");
     }
 
     if (loraUpdateQueue == nullptr) {
@@ -115,7 +111,7 @@ void mainTask(void* pvParameters) {
                      pktCount, pkt.rssi, pkt.snr, pkt.length);
             }
 
-            if (ble && ble->isEnabled() && ble->isConnected()) {
+            if (ble->isEnabled() && ble->isConnected()) {
                 ble->notifyBeaconData(pkt.data, pkt.length);
             }
         }

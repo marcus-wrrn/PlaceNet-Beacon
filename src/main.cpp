@@ -24,12 +24,10 @@
 #endif
 
 #include "LoRaModule.h"
+#include "BLEModule.h"
 #include "tasks/lora_task.h"
 #include "tasks/main_task.h"
 #include "tasks/network_task.h"
-
-// #include "BLEModule.h"
-// static BLEModule* g_ble = nullptr;
 
 static const char *TAG = "INIT";
 
@@ -42,6 +40,7 @@ DisplayModule display;
 #endif
 
 static LoRaModule* g_lora = nullptr;
+static BLEModule* g_ble = nullptr;
 
 #ifdef HAS_GPS
 static GPSModule* g_gps = nullptr;
@@ -96,18 +95,16 @@ bool setupGPS() {
     return true;
 }
 
-// bool setupBLE() {
-//     g_ble = new BLEModule();
-//     if (!g_ble || !g_ble->init()) {
-//         LOGE(TAG, "Failed to create or initialize BLEModule");
-//         delete g_ble;
-//         g_ble = nullptr;
-//         return false;
-//     }
-//     g_ble->startAdvertising();
-//     LOGI(TAG, "BLE initialized and advertising");
-//     return true;
-// }
+bool setupBLE() {
+    g_ble = new BLEModule();
+    if (!g_ble) {
+        LOGE(TAG, "Failed to create BLEModule");
+        return false;
+    }
+    g_ble->setEnabled(false);
+    LOGI(TAG, "BLE module created (disabled)");
+    return true;
+}
 
 bool setupDisplay() {
 #ifdef DISPLAY_MODEL
@@ -162,7 +159,7 @@ void initializeTasks() {
         setupLoRaTask(g_lora, 4096);
     }
 
-    setupMainTask(4096);
+    setupMainTask(g_ble, 4096);
 
     LOGI(TAG, "All tasks spawned");
 }
@@ -207,8 +204,8 @@ void setup() {
     setupLoRa();
     setupGPS();
     setupHTTPServer();
-    setupNetworkTask(4096);
-    // setupBLE();
+    setupNetworkTask(8192 * 2);
+    setupBLE();
 
     initializeTasks();
 
