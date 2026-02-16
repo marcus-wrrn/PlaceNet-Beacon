@@ -49,7 +49,8 @@ void mainTask(void* pvParameters) {
     BLEModule* ble = params->ble;
 
     if (ble->isEnabled()) {
-        LOGI(TAG, "BLE module enabled");
+        LOGI(TAG, "BLE module enabled starting advertisement");
+        ble->startAdvertising();
     } else {
         LOGI(TAG, "BLE module disabled");
     }

@@ -1,0 +1,36 @@
+{
+  "wifi": [
+    {
+      "ssid": "MyHomeNetwork",
+      "password": "MyPassword123",
+      "enabled": true
+    },
+    {
+      "ssid": "MyWorkNetwork",
+      "password": "WorkPassword456",
+      "enabled": true
+    }
+  ],
+  "mqtt": {
+    "broker": "mqtt.example.com",
+    "port": 1883,
+    "username": "beacon_user",
+    "password": "mqtt_password",
+    "clientId": "beacon_001",
+    "baseTopic": "placenet/beacons",
+    "enabled": true,
+    "useTLS": false
+  },
+  "httpServer": {
+    "url": "api.example.com",
+    "port": 443,
+    "enabled": true,
+    "useTLS": true
+  },
+  "beacon": {
+    "intervalMs": 30000,
+    "loraEnabled": true,
+    "gpsEnabled": true,
+    "bleEnabled": false
+  }
+}

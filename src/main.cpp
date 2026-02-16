@@ -96,13 +96,14 @@ bool setupGPS() {
 }
 
 bool setupBLE() {
-    g_ble = new BLEModule();
+    g_ble = new BLEModule(true);
+    g_ble->init();
     if (!g_ble) {
         LOGE(TAG, "Failed to create BLEModule");
         return false;
     }
-    g_ble->setEnabled(false);
-    LOGI(TAG, "BLE module created (disabled)");
+    //g_ble->setEnabled(true);
+    //LOGI(TAG, "BLE module created (disabled)");
     return true;
 }
 
