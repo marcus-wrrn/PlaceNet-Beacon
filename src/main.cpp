@@ -48,11 +48,6 @@ static GPSModule* g_gps = nullptr;
 
 int pktCount = 0;
 
-#ifdef HAS_HTTP_SERVER
-static SDCardModule* g_sdCard = nullptr;
-static HTTPServerModule* g_httpServer = nullptr;
-#endif
-
 bool setupPMU() {
 #ifdef HAS_PMU
     g_pmu = new PMUModule(PMU_WIRE_PORT, PMU_IRQ);
@@ -117,28 +112,6 @@ bool setupDisplay() {
     return true;
 }
 
-bool setupHTTPServer() {
-#ifdef HAS_HTTP_SERVER
-    g_sdCard = new SDCardModule();
-    if (!g_sdCard) {
-        LOGE(TAG, "Failed to create SDCardModule");
-        return false;
-    }
-
-    g_httpServer = new HTTPServerModule(g_sdCard);
-    if (!g_httpServer) {
-        LOGE(TAG, "Failed to create HTTPServerModule");
-        delete g_sdCard;
-        g_sdCard = nullptr;
-        return false;
-    }
-    LOGI(TAG, "HTTP server initialized successfully");
-#else
-    LOGI(TAG, "No HTTP server configured");
-#endif
-    return true;
-}
-
 void initializeTasks() {
     LOGI(TAG, "Spawning FreeRTOS tasks...");
 
@@ -147,19 +120,15 @@ void initializeTasks() {
         setupPMUTask(g_pmu, 2048);
     }
 #endif
-
     setupDisplay();
-
 #ifdef HAS_GPS
     if (g_gps) {
         setupLocationTask(g_gps, 4096);
     }
 #endif
-
     if (g_lora) {
         setupLoRaTask(g_lora, 4096);
     }
-
     setupMainTask(g_ble, 4096);
 
     LOGI(TAG, "All tasks spawned");
@@ -204,7 +173,6 @@ void setup() {
 
     setupLoRa();
     setupGPS();
-    setupHTTPServer();
     setupNetworkTask(8192 * 2);
     setupBLE();
 

@@ -151,7 +151,7 @@ void networkTask(void* pvParameters) {
         server.handleClient();
 
         uint32_t now = millis();
-        if (now - lastDebugPrint > 30000) {
+        if (now - lastDebugPrint > 300) {
             LOGI(TAG, "Network task alive, IP: %s, RSSI: %d", WiFi.localIP().toString().c_str(), WiFi.RSSI());
             lastDebugPrint = now;
         }

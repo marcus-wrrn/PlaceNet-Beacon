@@ -111,10 +111,6 @@ void mainTask(void* pvParameters) {
                 LOGI(TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
                      pktCount, pkt.rssi, pkt.snr, pkt.length);
             }
-
-            if (ble->isEnabled() && ble->isConnected()) {
-                ble->notifyBeaconData(pkt.data, pkt.length);
-            }
         }
 
         TickType_t now = xTaskGetTickCount();
