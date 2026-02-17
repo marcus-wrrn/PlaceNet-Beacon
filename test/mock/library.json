@@ -1,0 +1,5 @@
+{
+    "name": "ArduinoMock",
+    "version": "1.0.0",
+    "description": "Minimal Arduino shim for native tests"
+}
