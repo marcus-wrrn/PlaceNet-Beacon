@@ -180,11 +180,11 @@ void mainTask(void* pvParameters) {
     SupervisorContext* ctx = static_cast<SupervisorContext*>(pvParameters);
 
     // Determine initial state from config
-    if (ctx->config && ctx->config->validate()) {
-        LOGI(TAG, "Valid config found — booting directly into operational mode");
+    if (ctx->config && ctx->config->isSetUp()) {
+        LOGI(TAG, "WiFi configured — booting directly into operational mode");
         enterOperational(ctx);
     } else {
-        LOGI(TAG, "No valid config — entering setup/provisioning mode");
+        LOGI(TAG, "No WiFi configured — entering setup/provisioning mode");
         enterSetup(ctx);
     }
 

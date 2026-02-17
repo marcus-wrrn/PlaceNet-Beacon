@@ -88,6 +88,15 @@ bool PlaceNetConfig::validate() const {
     return true;
 }
 
+bool PlaceNetConfig::isSetUp() const {
+    for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
+        if (wifi[i].enabled && isValidSSID(wifi[i].ssid)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void PlaceNetConfig::print() const {
     LOGI(TAG, "=== PlaceNet Configuration ===");
 

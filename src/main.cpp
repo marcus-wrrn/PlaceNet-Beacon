@@ -104,13 +104,14 @@ static bool setupSD() {
     LOGI(TAG, "SD card initialized");
     if (g_sd->loadConfig(&g_config)) {
         LOGI(TAG, "Config loaded from SD");
-        g_config.print();
     } else {
-        LOGI(TAG, "No config on SD — will use defaults");
+        LOGI(TAG, "No config on SD — saving defaults");
+        g_sd->saveConfig(&g_config);
     }
 #else
     LOGI(TAG, "No SD card configured");
 #endif
+    g_config.print();
     return true;
 }
 

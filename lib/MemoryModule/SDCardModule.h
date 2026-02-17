@@ -43,6 +43,9 @@ private:
     bool initialized_;
     uint8_t cardType_;
     uint64_t cardSize_;
+#if defined(T_BEAM_S3_SUPREME_SX1262) || defined(T_BEAM_S3_SUPREME_LR1121)
+    SPIClass sdSPI_;
+#endif
 
     bool parseConfigJSON(const char* json, PlaceNetConfig* config);
     bool createConfigJSON(const PlaceNetConfig* config, char* buffer, size_t bufferSize);

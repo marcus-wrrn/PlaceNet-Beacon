@@ -65,6 +65,7 @@ public:
     void reset();
     void print() const;
     bool validate() const;
+    bool isSetUp() const;
 
 private:
     bool isValidSSID(const char* ssid) const;

@@ -3,13 +3,12 @@
 #include "logger.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <WebServer.h>
+#include <ESPAsyncWebServer.h>
 #include <esp_mac.h>
-#include <freertos/task.h>
 
 static const char* TAG = "NETWORK_TASK";
 
-static WebServer server(80);
+static AsyncWebServer server(80);
 static char staSSID[MAX_SSID_LENGTH]         = {};
 static char staPassword[MAX_PASSWORD_LENGTH] = {};
 static const char* mdnsBase = "beacon";
@@ -81,43 +80,6 @@ static bool startMDNS() {
     return false;
 }
 
-static void handleRoot() {
-    LOGI(TAG, "Received response!");
-    uint8_t mac[6];
-    esp_efuse_mac_get_default(mac);
-
-    String ip = WiFi.localIP().toString();
-    String hostname = strlen(resolvedHostname) > 0
-        ? String(resolvedHostname) + ".local"
-        : "N/A";
-
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-    String html = "<!DOCTYPE html><html><head>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>PlaceNet Beacon</title>"
-        "<style>"
-        "body{font-family:sans-serif;margin:2em;background:#1a1a2e;color:#e0e0e0;}"
-        "h1{color:#00d4ff;}"
-        "table{border-collapse:collapse;margin-top:1em;}"
-        "td{padding:0.4em 1em;border-bottom:1px solid #333;}"
-        "td:first-child{font-weight:bold;color:#aaa;}"
-        "</style></head><body>"
-        "<h1>PlaceNet Beacon</h1>"
-        "<table>"
-        "<tr><td>Device</td><td>" + String(BOARD_VARIANT_NAME) + "</td></tr>"
-        "<tr><td>MAC</td><td>" + String(macStr) + "</td></tr>"
-        "<tr><td>IP</td><td>" + ip + "</td></tr>"
-        "<tr><td>WiFi Mode</td><td>STA</td></tr>"
-        "<tr><td>SSID</td><td>" + String(staSSID) + "</td></tr>"
-        "<tr><td>Hostname</td><td>" + hostname + "</td></tr>"
-        "</table></body></html>";
-
-    server.send(200, "text/html", html);
-}
-
 bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
     // Find first enabled WiFi entry
     bool hasCredentials = false;
@@ -145,42 +107,44 @@ bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
 
     startMDNS();
 
-    BaseType_t result = xTaskCreatePinnedToCore(
-        networkTask,
-        "Network",
-        stackDepth,
-        nullptr,
-        6,
-        nullptr,
-        1
-    );
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        uint8_t mac[6];
+        esp_efuse_mac_get_default(mac);
 
-    if (result == pdPASS) {
-        LOGI(TAG, "Network task created on core 1 (priority 6)");
-        return true;
-    }
+        String ip = WiFi.localIP().toString();
+        String hostname = strlen(resolvedHostname) > 0
+            ? String(resolvedHostname) + ".local"
+            : "N/A";
 
-    LOGE(TAG, "Failed to create network task");
-    return false;
-}
+        char macStr[18];
+        snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
-void networkTask(void* pvParameters) {
-    LOGI(TAG, "Network task started");
+        String html = "<!DOCTYPE html><html><head>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>PlaceNet Beacon</title>"
+            "<style>"
+            "body{font-family:sans-serif;margin:2em;background:#1a1a2e;color:#e0e0e0;}"
+            "h1{color:#00d4ff;}"
+            "table{border-collapse:collapse;margin-top:1em;}"
+            "td{padding:0.4em 1em;border-bottom:1px solid #333;}"
+            "td:first-child{font-weight:bold;color:#aaa;}"
+            "</style></head><body>"
+            "<h1>PlaceNet Beacon</h1>"
+            "<table>"
+            "<tr><td>Device</td><td>" + String(BOARD_VARIANT_NAME) + "</td></tr>"
+            "<tr><td>MAC</td><td>" + String(macStr) + "</td></tr>"
+            "<tr><td>IP</td><td>" + ip + "</td></tr>"
+            "<tr><td>WiFi Mode</td><td>STA</td></tr>"
+            "<tr><td>SSID</td><td>" + String(staSSID) + "</td></tr>"
+            "<tr><td>Hostname</td><td>" + hostname + "</td></tr>"
+            "</table></body></html>";
 
-    server.on("/", handleRoot);
+        request->send(200, "text/html", html);
+    });
+
     server.begin();
     LOGI(TAG, "HTTP server started on port 80");
 
-    uint32_t lastDebugPrint = 0;
-    while (1) {
-        server.handleClient();
-
-        uint32_t now = millis();
-        if (now - lastDebugPrint > 300) {
-            LOGI(TAG, "Network task alive, IP: %s, RSSI: %d", WiFi.localIP().toString().c_str(), WiFi.RSSI());
-            lastDebugPrint = now;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    return true;
 }

@@ -11,6 +11,9 @@ SDCardModule::SDCardModule()
     : initialized_(false)
     , cardType_(CARD_NONE)
     , cardSize_(0)
+#if defined(T_BEAM_S3_SUPREME_SX1262) || defined(T_BEAM_S3_SUPREME_LR1121)
+    , sdSPI_(HSPI)
+#endif
 {}
 
 SDCardModule::~SDCardModule() {
@@ -31,10 +34,9 @@ bool SDCardModule::init() {
          SDCARD_MOSI, SDCARD_MISO, SDCARD_SCLK, SDCARD_CS);
 
 #if defined(T_BEAM_S3_SUPREME_SX1262) || defined(T_BEAM_S3_SUPREME_LR1121)
-    SPIClass sdSPI(HSPI);
-    sdSPI.begin(SDCARD_SCLK, SDCARD_MISO, SDCARD_MOSI, SDCARD_CS);
+    sdSPI_.begin(SDCARD_SCLK, SDCARD_MISO, SDCARD_MOSI, SDCARD_CS);
 
-    if (!SD.begin(SDCARD_CS, sdSPI, 4000000U, SD_MOUNT_POINT, SD_MAX_FILES)) {
+    if (!SD.begin(SDCARD_CS, sdSPI_, 4000000U, SD_MOUNT_POINT, SD_MAX_FILES)) {
         LOGE(TAG, "SD card mount failed");
         return false;
     }
@@ -72,6 +74,7 @@ bool SDCardModule::fileExists(const char* path) {
     if (!initialized_) {
         return false;
     }
+    ESP_LOGI(TAG, "Checking that the file exists");
     return SD.exists(path);
 }
 
