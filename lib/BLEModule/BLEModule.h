@@ -3,6 +3,7 @@
 #include "config.h"
 #include "BLECallbacks.h"
 #include <NimBLEDevice.h>
+#include <functional>
 
 #define BLE_DEVICE_NAME "PlaceNet-Beacon"
 
@@ -13,13 +14,13 @@
 
 #define WIFI_CRED_MAX_LEN 64
 
-struct WiFiCredentials {
+struct BLEWiFiCredentials {
     char ssid[32];
     char password[WIFI_CRED_MAX_LEN];
     bool pending;
 };
 
-typedef void (*WiFiCredentialsCallback)(const WiFiCredentials* creds);
+typedef void (*WiFiCredentialsCallback)(const BLEWiFiCredentials* creds);
 
 class BLEModule {
 public:
@@ -35,13 +36,15 @@ public:
     void startAdvertising();
     void stopAdvertising();
     bool isAdvertising() const;
+    void stop();
 
     uint16_t getConnectedCount() const;
     bool isConnected() const { return getConnectedCount() > 0; }
 
     void setWiFiCredentialsCallback(WiFiCredentialsCallback callback);
+    void setCredentialsCallback(std::function<void(const char* ssid, const char* pass)> cb);
     bool hasPendingWiFiCredentials() const;
-    WiFiCredentials getWiFiCredentials();
+    BLEWiFiCredentials getWiFiCredentials();
     void setWiFiStatus(const char* status);
 
 private:
@@ -53,8 +56,9 @@ private:
     NimBLECharacteristic* wifiPasswordChar_;
     NimBLECharacteristic* wifiStatusChar_;
 
-    WiFiCredentials wifiCreds_;
+    BLEWiFiCredentials wifiCreds_;
     WiFiCredentialsCallback wifiCredsCallback_;
+    std::function<void(const char* ssid, const char* pass)> credentialsCallback_;
 
     BeaconServerCallbacks serverCallbacks_;
     WiFiCharacteristicCallbacks wifiCharCallbacks_;

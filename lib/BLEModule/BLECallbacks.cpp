@@ -48,6 +48,9 @@ void WiFiCharacteristicCallbacks::onWrite(NimBLECharacteristic* pCharacteristic,
             if (bleModule_->wifiCredsCallback_) {
                 bleModule_->wifiCredsCallback_(&bleModule_->wifiCreds_);
             }
+            if (bleModule_->credentialsCallback_) {
+                bleModule_->credentialsCallback_(bleModule_->wifiCreds_.ssid, bleModule_->wifiCreds_.password);
+            }
         } else {
             LOGW(TAG, "Password received but no SSID set yet");
         }

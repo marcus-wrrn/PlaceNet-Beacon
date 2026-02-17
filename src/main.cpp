@@ -16,7 +16,6 @@
 
 #ifdef HAS_GPS
 #include "GPSModule.h"
-#include "tasks/location_task.h"
 #endif
 
 #ifdef DISPLAY_MODEL
@@ -25,11 +24,11 @@
 
 #include "LoRaModule.h"
 #include "BLEModule.h"
-#include "tasks/lora_task.h"
+#include "PlaceNetConfig.h"
+#include "SDCardModule.h"
 #include "tasks/main_task.h"
-#include "tasks/network_task.h"
 
-static const char *TAG = "INIT";
+static const char* TAG = "INIT";
 
 #ifdef HAS_PMU
 static PMUModule* g_pmu = nullptr;
@@ -39,8 +38,10 @@ static PMUModule* g_pmu = nullptr;
 DisplayModule display;
 #endif
 
-static LoRaModule* g_lora = nullptr;
-static BLEModule* g_ble = nullptr;
+static LoRaModule*     g_lora   = nullptr;
+static BLEModule*      g_ble    = nullptr;
+static PlaceNetConfig  g_config;
+static SDCardModule*   g_sd     = nullptr;
 
 #ifdef HAS_GPS
 static GPSModule* g_gps = nullptr;
@@ -48,7 +49,7 @@ static GPSModule* g_gps = nullptr;
 
 int pktCount = 0;
 
-bool setupPMU() {
+static bool setupPMU() {
 #ifdef HAS_PMU
     g_pmu = new PMUModule(PMU_WIRE_PORT, PMU_IRQ);
     if (!g_pmu->initialize()) {
@@ -58,23 +59,14 @@ bool setupPMU() {
         return false;
     }
     LOGI(TAG, "PMU initialized successfully");
+    setupPMUTask(g_pmu, 2048);
 #else
     LOGI(TAG, "No PMU configured");
 #endif
     return true;
 }
 
-bool setupLoRa() {
-    g_lora = new LoRaModule();
-    if (!g_lora) {
-        LOGE(TAG, "Failed to create LoRaModule");
-        return false;
-    }
-    LOGI(TAG, "LoRa module created successfully");
-    return true;
-}
-
-bool setupGPS() {
+static bool setupGPS() {
 #ifdef HAS_GPS
     g_gps = new GPSModule();
     if (!g_gps || !g_gps->init()) {
@@ -90,19 +82,7 @@ bool setupGPS() {
     return true;
 }
 
-bool setupBLE() {
-    g_ble = new BLEModule(true);
-    g_ble->init();
-    if (!g_ble) {
-        LOGE(TAG, "Failed to create BLEModule");
-        return false;
-    }
-    //g_ble->setEnabled(true);
-    //LOGI(TAG, "BLE module created (disabled)");
-    return true;
-}
-
-bool setupDisplay() {
+static bool setupDisplay() {
 #ifdef DISPLAY_MODEL
     display.init();
     LOGI(TAG, "Display initialized successfully");
@@ -112,26 +92,26 @@ bool setupDisplay() {
     return true;
 }
 
-void initializeTasks() {
-    LOGI(TAG, "Spawning FreeRTOS tasks...");
-
-#ifdef HAS_PMU
-    if (g_pmu) {
-        setupPMUTask(g_pmu, 2048);
+static bool setupSD() {
+#ifdef HAS_SDCARD
+    g_sd = new SDCardModule();
+    if (!g_sd->init()) {
+        LOGE(TAG, "SD card init failed — no persistent config");
+        delete g_sd;
+        g_sd = nullptr;
+        return false;
     }
+    LOGI(TAG, "SD card initialized");
+    if (g_sd->loadConfig(&g_config)) {
+        LOGI(TAG, "Config loaded from SD");
+        g_config.print();
+    } else {
+        LOGI(TAG, "No config on SD — will use defaults");
+    }
+#else
+    LOGI(TAG, "No SD card configured");
 #endif
-    setupDisplay();
-#ifdef HAS_GPS
-    if (g_gps) {
-        setupLocationTask(g_gps, 4096);
-    }
-#endif
-    if (g_lora) {
-        setupLoRaTask(g_lora, 4096);
-    }
-    setupMainTask(g_ble, 4096);
-
-    LOGI(TAG, "All tasks spawned");
+    return true;
 }
 
 void setup() {
@@ -140,7 +120,7 @@ void setup() {
 
     Serial.println();
     LOGI(TAG, "===========================================");
-    LOGI(TAG, "Beacon");
+    LOGI(TAG, "PlaceNet Beacon");
     LOGI(TAG, "===========================================");
 
     BoardUtility::printChipInfo();
@@ -171,12 +151,25 @@ void setup() {
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
     LOGI(TAG, "SPI bus initialized");
 
-    setupLoRa();
+    setupDisplay();
     setupGPS();
-    setupNetworkTask(8192 * 2);
-    setupBLE();
+    setupSD();
 
-    initializeTasks();
+    // Create hardware module objects — not yet initialized
+    g_lora = new LoRaModule();
+    g_ble  = new BLEModule();
+
+    // Build supervisor context and spawn only main_task
+    static SupervisorContext ctx;
+    ctx.lora   = g_lora;
+    ctx.ble    = g_ble;
+    ctx.config = &g_config;
+    ctx.sd     = g_sd;
+#ifdef HAS_GPS
+    ctx.gps = g_gps;
+#endif
+
+    setupMainTask(&ctx, 8192);
 
     LOGI(TAG, "===========================================");
     LOGI(TAG, "Setup complete");

@@ -4,18 +4,36 @@
 #include <freertos/queue.h>
 #include <cstring>
 #include "LoRaModule.h"
+#include "BLEModule.h"
+#include "PlaceNetConfig.h"
+#include "SDCardModule.h"
 
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
 extern DisplayModule display;
 #endif
 
-class BLEModule;
+#ifdef HAS_GPS
+#include "GPSModule.h"
+#endif
 
 extern int pktCount;
 
-struct MainTaskParams {
-    BLEModule* ble;
+enum BeaconState {
+    STATE_SETUP,
+    STATE_PROVISIONING,
+    STATE_TRANSITIONING,
+    STATE_OPERATIONAL,
+};
+
+struct SupervisorContext {
+    LoRaModule*     lora;
+    BLEModule*      ble;
+    PlaceNetConfig* config;
+    SDCardModule*   sd;
+#ifdef HAS_GPS
+    GPSModule*      gps;
+#endif
 };
 
 struct DisplayState {
@@ -29,6 +47,7 @@ struct DisplayState {
     float lastSnr;
     bool lastPacketWasSent;
     uint8_t receivedData[LORA_MAX_PACKET_SIZE + 1];
+    BeaconState beaconState;
 
     bool operator!=(const DisplayState& other) const {
         return batteryVoltage != other.batteryVoltage ||
@@ -40,20 +59,22 @@ struct DisplayState {
                lastRssi != other.lastRssi ||
                lastSnr != other.lastSnr ||
                lastPacketWasSent != other.lastPacketWasSent ||
+               beaconState != other.beaconState ||
                strcmp((const char*)receivedData, (const char*)other.receivedData) != 0;
     }
 };
 
 /**
- * @brief Main task function - handles LoRa packet processing and display updates
+ * @brief Main supervisor task — drives state machine and spawns worker tasks
  *
- * This task:
- * - Waits for LoRa packets from loraUpdateQueue
- * - Logs packet information (RSSI, SNR, length)
- * - Updates display with packet data
+ * States:
+ *   STATE_SETUP        → no valid config, init BLE
+ *   STATE_PROVISIONING → BLE advertising, waiting for credentials
+ *   STATE_TRANSITIONING→ credentials received, save to SD, stop BLE
+ *   STATE_OPERATIONAL  → BLE off, spawn LoRa/GPS/Network tasks, process packets
  *
- * @param pvParameters Unused (nullptr)
+ * @param pvParameters Pointer to SupervisorContext
  */
 void mainTask(void* pvParameters);
 
-bool setupMainTask(BLEModule* ble, uint32_t stackDepth);
+bool setupMainTask(SupervisorContext* ctx, uint32_t stackDepth);

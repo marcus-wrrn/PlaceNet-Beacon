@@ -1,9 +1,11 @@
 #include "main_task.h"
 #include "lora_task.h"
+#include "network_task.h"
 #include "LoRaModule.h"
 #include "logger.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <atomic>
 
 #ifdef HAS_PMU
 #include "pmu_task.h"
@@ -16,56 +18,58 @@
 #include "GPSModule.h"
 #include "managers/gps_manager.h"
 #endif
-#include "BLEModule.h"
 
 static const char* TAG = "MAIN";
-static MainTaskParams mainParams = {};
 
-bool setupMainTask(BLEModule* ble, uint32_t stackDepth) {
-    mainParams.ble = ble;
-    BaseType_t result = xTaskCreatePinnedToCore(
-        mainTask,
-        "MainTask",
-        stackDepth,
-        &mainParams,
-        10,
-        nullptr,
-        0
-    );
+static SupervisorContext* g_ctx = nullptr;
+static std::atomic<BeaconState> g_state{STATE_SETUP};
 
-    if (result == pdPASS) {
-        LOGI(TAG, "Main task created on core 0 (priority 10)");
-        return true;
-    } else {
-        LOGE(TAG, "Failed to create main task");
-        return false;
-    }
+// Credentials received from BLE callback (set from BLE ISR/task context)
+static volatile bool g_credsReceived = false;
+static char g_pendingSsid[MAX_SSID_LENGTH]     = {};
+static char g_pendingPassword[MAX_PASSWORD_LENGTH] = {};
+
+static void onCredentialsReceived(const char* ssid, const char* pass) {
+    strncpy(g_pendingSsid, ssid, MAX_SSID_LENGTH - 1);
+    g_pendingSsid[MAX_SSID_LENGTH - 1] = '\0';
+    strncpy(g_pendingPassword, pass, MAX_PASSWORD_LENGTH - 1);
+    g_pendingPassword[MAX_PASSWORD_LENGTH - 1] = '\0';
+    g_credsReceived = true;
 }
 
-void mainTask(void* pvParameters) {
-    LOGI(TAG, "Main task starting...");
+static void enterSetup(SupervisorContext* ctx) {
+    LOGI(TAG, "Entering SETUP state: starting BLE provisioning");
+    ctx->ble->setCredentialsCallback(onCredentialsReceived);
+    ctx->ble->init();
+    ctx->ble->startAdvertising();
+    g_state = STATE_PROVISIONING;
+    LOGI(TAG, "BLE advertising started, waiting for credentials");
+}
 
-    MainTaskParams* params = static_cast<MainTaskParams*>(pvParameters);
-    BLEModule* ble = params->ble;
+static void enterOperational(SupervisorContext* ctx) {
+    LOGI(TAG, "Entering OPERATIONAL state");
 
-    if (ble->isEnabled()) {
-        LOGI(TAG, "BLE module enabled starting advertisement");
-        ble->startAdvertising();
-    } else {
-        LOGI(TAG, "BLE module disabled");
+    if (ctx->lora) {
+        setupLoRaTask(ctx->lora, 4096);
     }
 
-    if (loraUpdateQueue == nullptr) {
-        LOGE(TAG, "ERROR: loraUpdateQueue is NULL!");
-        vTaskDelete(nullptr);
-        return;
+#ifdef HAS_GPS
+    if (ctx->gps && ctx->config->beacon.gpsEnabled) {
+        setupLocationTask(ctx->gps, 4096);
     }
+#endif
 
-    LOGI(TAG, "Waiting for LoRa packets...");
+    setupNetworkTask(ctx->config, 8192 * 2);
 
+    g_state = STATE_OPERATIONAL;
+    LOGI(TAG, "Worker tasks spawned");
+}
+
+static void runOperationalLoop(SupervisorContext* ctx) {
     LoRaPacket pkt;
-    DisplayState currentState = {};
-    DisplayState lastDisplayedState = {};
+    DisplayState currentState  = {};
+    DisplayState lastDisplayed = {};
+    currentState.beaconState   = STATE_OPERATIONAL;
     TickType_t lastDisplayUpdate = 0;
     const TickType_t displayUpdateInterval = pdMS_TO_TICKS(5000);
 
@@ -87,20 +91,20 @@ void mainTask(void* pvParameters) {
 #ifdef HAS_GPS
         if (gpsManager.updateGPS()) {
             const GPSData& gpsData = gpsManager.getData();
-            currentState.latitude = gpsData.position.latitude;
-            currentState.longitude = gpsData.position.longitude;
+            currentState.latitude      = gpsData.position.latitude;
+            currentState.longitude     = gpsData.position.longitude;
             currentState.satelliteCount = gpsData.metadata.satelliteCount;
-            currentState.altitude = gpsData.metadata.altitude;
+            currentState.altitude      = gpsData.metadata.altitude;
         }
 #endif
 
-        while (xQueueReceive(loraUpdateQueue, &pkt, 0) == pdPASS) {
+        while (loraUpdateQueue && xQueueReceive(loraUpdateQueue, &pkt, 0) == pdPASS) {
             pktCount++;
             bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
 
-            currentState.packetCount = pktCount;
-            currentState.lastRssi = pkt.rssi;
-            currentState.lastSnr = pkt.snr;
+            currentState.packetCount     = pktCount;
+            currentState.lastRssi        = pkt.rssi;
+            currentState.lastSnr         = pkt.snr;
             currentState.lastPacketWasSent = isSentPacket;
             memcpy(currentState.receivedData, pkt.data, pkt.length);
             currentState.receivedData[pkt.length] = '\0';
@@ -108,14 +112,14 @@ void mainTask(void* pvParameters) {
             if (isSentPacket) {
                 LOGI(TAG, "Packet #%d sent\n%.*s", pktCount, pkt.length, (const char*)pkt.data);
             } else {
-                LOGI(TAG, "#%d Received packet with RSSI: %d dBm\nSNR: %.2f dB\nLength: %d",
+                LOGI(TAG, "#%d Received packet: RSSI=%d dBm, SNR=%.2f dB, len=%d",
                      pktCount, pkt.rssi, pkt.snr, pkt.length);
             }
         }
 
         TickType_t now = xTaskGetTickCount();
         if (now - lastDisplayUpdate >= displayUpdateInterval) {
-            if (currentState != lastDisplayedState) {
+            if (currentState != lastDisplayed) {
 #ifdef DISPLAY_MODEL
                 display.clearBuffer();
 
@@ -139,11 +143,102 @@ void mainTask(void* pvParameters) {
 
                 display.sendBuffer();
 #endif
-                lastDisplayedState = currentState;
+                lastDisplayed = currentState;
             }
             lastDisplayUpdate = now;
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
+}
+
+bool setupMainTask(SupervisorContext* ctx, uint32_t stackDepth) {
+    g_ctx = ctx;
+
+    BaseType_t result = xTaskCreatePinnedToCore(
+        mainTask,
+        "MainTask",
+        stackDepth,
+        ctx,
+        10,
+        nullptr,
+        0
+    );
+
+    if (result == pdPASS) {
+        LOGI(TAG, "Main task created on core 0 (priority 10)");
+        return true;
+    } else {
+        LOGE(TAG, "Failed to create main task");
+        return false;
+    }
+}
+
+void mainTask(void* pvParameters) {
+    LOGI(TAG, "Main task starting...");
+
+    SupervisorContext* ctx = static_cast<SupervisorContext*>(pvParameters);
+
+    // Determine initial state from config
+    if (ctx->config && ctx->config->validate()) {
+        LOGI(TAG, "Valid config found — booting directly into operational mode");
+        enterOperational(ctx);
+    } else {
+        LOGI(TAG, "No valid config — entering setup/provisioning mode");
+        enterSetup(ctx);
+    }
+
+    // State machine loop
+    while (g_state != STATE_OPERATIONAL) {
+        switch (g_state.load()) {
+            case STATE_PROVISIONING: {
+#ifdef DISPLAY_MODEL
+                static bool provDisplayShown = false;
+                if (!provDisplayShown) {
+                    display.clearBuffer();
+                    display.drawLine("Awaiting BLE config");
+                    display.sendBuffer();
+                    provDisplayShown = true;
+                }
+#endif
+                if (g_credsReceived) {
+                    LOGI(TAG, "Credentials received: SSID='%s'", g_pendingSsid);
+                    // Write credentials into config
+                    strncpy(ctx->config->wifi[0].ssid, g_pendingSsid, MAX_SSID_LENGTH - 1);
+                    ctx->config->wifi[0].ssid[MAX_SSID_LENGTH - 1] = '\0';
+                    strncpy(ctx->config->wifi[0].password, g_pendingPassword, MAX_PASSWORD_LENGTH - 1);
+                    ctx->config->wifi[0].password[MAX_PASSWORD_LENGTH - 1] = '\0';
+                    ctx->config->wifi[0].enabled = true;
+                    g_credsReceived = false;
+
+#ifdef HAS_SDCARD
+                    if (ctx->sd && ctx->sd->isInitialized()) {
+                        if (ctx->sd->saveConfig(ctx->config)) {
+                            LOGI(TAG, "Config saved to SD");
+                        } else {
+                            LOGE(TAG, "Failed to save config to SD");
+                        }
+                    }
+#endif
+                    g_state = STATE_TRANSITIONING;
+                }
+                break;
+            }
+
+            case STATE_TRANSITIONING: {
+                LOGI(TAG, "Transitioning: stopping BLE...");
+                ctx->ble->stop();
+                vTaskDelay(pdMS_TO_TICKS(500));  // let radio settle
+                enterOperational(ctx);
+                break;
+            }
+
+            default:
+                break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    // Once operational, run the packet-processing loop (never returns)
+    runOperationalLoop(ctx);
 }

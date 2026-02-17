@@ -120,6 +120,32 @@ bool BLEModule::createWiFiService() {
     return true;
 }
 
+void BLEModule::stop() {
+    if (!initialized_) {
+        return;
+    }
+    stopAdvertising();
+    // Disconnect all connected clients
+    if (server_) {
+        std::vector<uint16_t> peers = server_->getPeerDevices();
+        for (uint16_t handle : peers) {
+            server_->disconnect(handle);
+        }
+    }
+    NimBLEDevice::deinit(true);
+    initialized_ = false;
+    server_ = nullptr;
+    wifiService_ = nullptr;
+    wifiSsidChar_ = nullptr;
+    wifiPasswordChar_ = nullptr;
+    wifiStatusChar_ = nullptr;
+    LOGI(TAG, "BLE stopped and deinitialized");
+}
+
+void BLEModule::setCredentialsCallback(std::function<void(const char* ssid, const char* pass)> cb) {
+    credentialsCallback_ = cb;
+}
+
 void BLEModule::setWiFiCredentialsCallback(WiFiCredentialsCallback callback) {
     wifiCredsCallback_ = callback;
 }
@@ -128,8 +154,8 @@ bool BLEModule::hasPendingWiFiCredentials() const {
     return wifiCreds_.pending;
 }
 
-WiFiCredentials BLEModule::getWiFiCredentials() {
-    WiFiCredentials creds = wifiCreds_;
+BLEWiFiCredentials BLEModule::getWiFiCredentials() {
+    BLEWiFiCredentials creds = wifiCreds_;
     wifiCreds_.pending = false;
     return creds;
 }

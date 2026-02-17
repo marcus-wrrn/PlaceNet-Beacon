@@ -5,7 +5,7 @@ The PlaceNet Beacon is an ESP32 + LoRa enabled device designed to discover other
 ## Directory Structure
 
 ```
-boards/
+boards/     # Supported dev boards
 ├── t-beams3-supreme.json
 └── t-deck.json
 
@@ -78,3 +78,11 @@ test/
     └── test_placenet_config/
         └── test_placenet_config.cpp
 ```
+
+## Running the project
+
+The project uses platformio to build primarily off of the T_BEAM_S3_SUPREME_SX1262 board environment.
+
+## Dev Notes
+
+Everytime you modify the directory structure make sure to update CLAUDE.md 

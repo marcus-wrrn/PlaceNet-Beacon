@@ -1,5 +1,14 @@
 #pragma once
 
+// Network / Config buffer sizes
+#define MAX_SSID_LENGTH          32
+#define MAX_PASSWORD_LENGTH      64
+#define MAX_MQTT_BROKER_LENGTH   128
+#define MAX_MQTT_TOPIC_LENGTH    64
+#define MAX_MQTT_CLIENT_ID_LENGTH 32
+#define MAX_HTTP_SERVER_LENGTH   128
+#define MAX_WIFI_NETWORKS        3
+
 // Supported Boards:
 // - T-Beam S3 Supreme (8MB Flash 8MB PSRAM)
 // - T-Deck (16MB Flash 8MB PSRAM)

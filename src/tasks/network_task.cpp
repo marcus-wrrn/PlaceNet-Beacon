@@ -10,8 +10,8 @@
 static const char* TAG = "NETWORK_TASK";
 
 static WebServer server(80);
-static const char* staSSID = "";
-static const char* staPassword = "";
+static char staSSID[MAX_SSID_LENGTH]         = {};
+static char staPassword[MAX_PASSWORD_LENGTH] = {};
 static const char* mdnsBase = "beacon";
 static char resolvedHostname[32] = "";
 
@@ -33,6 +33,11 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 static bool connectWiFi() {
+    if (strlen(staSSID) == 0) {
+        LOGW(TAG, "No WiFi SSID configured, skipping connection");
+        return false;
+    }
+
     WiFi.onEvent(onWiFiEvent);
     WiFi.mode(WIFI_STA);
     WiFi.begin(staSSID, staPassword);
@@ -113,7 +118,27 @@ static void handleRoot() {
     server.send(200, "text/html", html);
 }
 
-bool setupNetworkTask(uint32_t stackDepth) {
+bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
+    // Find first enabled WiFi entry
+    bool hasCredentials = false;
+    if (config) {
+        for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
+            if (config->wifi[i].enabled && strlen(config->wifi[i].ssid) > 0) {
+                strncpy(staSSID, config->wifi[i].ssid, sizeof(staSSID) - 1);
+                staSSID[sizeof(staSSID) - 1] = '\0';
+                strncpy(staPassword, config->wifi[i].password, sizeof(staPassword) - 1);
+                staPassword[sizeof(staPassword) - 1] = '\0';
+                hasCredentials = true;
+                break;
+            }
+        }
+    }
+
+    if (!hasCredentials) {
+        LOGW(TAG, "No enabled WiFi credentials in config, skipping network setup");
+        return false;
+    }
+
     if (!connectWiFi()) {
         return false;
     }
