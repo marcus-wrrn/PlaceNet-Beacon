@@ -83,13 +83,18 @@ static bool setupGPS() {
 }
 
 static bool setupDisplay() {
+    bool result = true;
 #ifdef DISPLAY_MODEL
-    display.init();
-    LOGI(TAG, "Display initialized successfully");
+    result = display.init();
+    if (result) {
+        LOGI(TAG, "Display initialized successfully");
+    } else {
+        LOGI(TAG, "Display failed to initialize");
+    }
 #else
     LOGI(TAG, "No display configured");
 #endif
-    return true;
+    return result;
 }
 
 static bool setupSD() {
