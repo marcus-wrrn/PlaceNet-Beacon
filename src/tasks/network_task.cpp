@@ -1,18 +1,28 @@
 #include "network_task.h"
 #include "config.h"
 #include "logger.h"
+#include "placenet_keys.h"
 #include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include <ESPmDNS.h>
-#include <ESPAsyncWebServer.h>
 #include <esp_mac.h>
 
 static const char* TAG = "NETWORK_TASK";
 
-static AsyncWebServer server(80);
+// ── Target server (change for testing) ────────────────────────────────────────
+static const char* HOME_SERVER_IP   = "192.168.2.39";
+static const uint16_t HOME_SERVER_PORT = 8080;
+// ──────────────────────────────────────────────────────────────────────────────
+
 static char staSSID[MAX_SSID_LENGTH]         = {};
 static char staPassword[MAX_PASSWORD_LENGTH] = {};
 static const char* mdnsBase = "beacon";
 static char resolvedHostname[32] = "";
+
+static PlaceNetKeyPair g_keyPair;
+
+// ── WiFi ──────────────────────────────────────────────────────────────────────
 
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
     switch (event) {
@@ -57,10 +67,11 @@ static bool connectWiFi() {
     return true;
 }
 
+// ── mDNS ─────────────────────────────────────────────────────────────────────
+
 static bool startMDNS() {
     if (MDNS.begin(mdnsBase)) {
         snprintf(resolvedHostname, sizeof(resolvedHostname), "%s", mdnsBase);
-        MDNS.addService("http", "tcp", 80);
         LOGI(TAG, "mDNS started: %s.local", resolvedHostname);
         return true;
     }
@@ -70,18 +81,130 @@ static bool startMDNS() {
         snprintf(candidate, sizeof(candidate), "%s-%d", mdnsBase, i);
         if (MDNS.begin(candidate)) {
             snprintf(resolvedHostname, sizeof(resolvedHostname), "%s", candidate);
-            MDNS.addService("http", "tcp", 80);
             LOGI(TAG, "mDNS started: %s.local", resolvedHostname);
             return true;
         }
     }
 
-    LOGW(TAG, "mDNS failed, still reachable via IP");
+    LOGW(TAG, "mDNS failed to start");
     return false;
 }
 
+// ── Key generation ────────────────────────────────────────────────────────────
+
+static bool generateKeyPair() {
+    LOGI(TAG, "Generating EC P-256 key pair...");
+    if (!placenet_keygen(&g_keyPair)) {
+        LOGE(TAG, "Key generation failed");
+        return false;
+    }
+    LOGI(TAG, "Key pair generated successfully");
+    LOGD(TAG, "Public key:\n%s", g_keyPair.publicKeyPem);
+    return true;
+}
+
+// ── Registration handshake ────────────────────────────────────────────────────
+
+// Build the base URL for the home server.
+static String homeServerBase() {
+    String url = "http://";
+    url += HOME_SERVER_IP;
+    url += ":";
+    url += HOME_SERVER_PORT;
+    return url;
+}
+
+// POST / with X-PlaceNet-Init header and device registration JSON.
+// Returns true if the server responds 200 "Secure channel established".
+static bool performHandshake() {
+    // Build device address string "ip:port" — we advertise ourselves on port 443
+    // so the home server can initiate a TLS callback.  The port here is the
+    // port the home server should try to reach us on; for now we use 443 as a
+    // placeholder (actual TLS listener is a future task).
+    String localIP   = WiFi.localIP().toString();
+    const uint16_t advertisePort = 443;
+
+    char deviceAddress[64];
+    snprintf(deviceAddress, sizeof(deviceAddress), "%s:%u",
+             localIP.c_str(), advertisePort);
+
+    // Build JSON payload.
+    JsonDocument doc;
+    doc["public_key"] = g_keyPair.publicKeyPem;
+    doc["address"]    = deviceAddress;
+    JsonObject mdns   = doc["mdns"].to<JsonObject>();
+    mdns["hostname"]  = resolvedHostname;
+    mdns["port"]      = advertisePort;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    String url = homeServerBase() + "/";
+
+    LOGI(TAG, "Sending PlaceNet registration to %s", url.c_str());
+
+    HTTPClient http;
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-PlaceNet-Init", "0.0.1");
+    http.setTimeout(10000);
+
+    int httpCode = http.POST(payload);
+
+    if (httpCode < 0) {
+        LOGE(TAG, "POST / failed: %s", http.errorToString(httpCode).c_str());
+        http.end();
+        return false;
+    }
+
+    String body = http.getString();
+    LOGI(TAG, "POST / -> HTTP %d: %s", httpCode, body.c_str());
+    http.end();
+
+    if (httpCode == 200) {
+        LOGI(TAG, "Handshake accepted by home server");
+        return true;
+    }
+
+    LOGE(TAG, "Handshake rejected (HTTP %d)", httpCode);
+    return false;
+}
+
+// GET /health — verify the home server is reachable and responding.
+static bool checkHealth() {
+    String url = homeServerBase() + "/health";
+
+    LOGI(TAG, "Checking server health at %s", url.c_str());
+
+    HTTPClient http;
+    http.begin(url);
+    http.setTimeout(5000);
+
+    int httpCode = http.GET();
+
+    if (httpCode < 0) {
+        LOGE(TAG, "GET /health failed: %s", http.errorToString(httpCode).c_str());
+        http.end();
+        return false;
+    }
+
+    String body = http.getString();
+    LOGI(TAG, "GET /health -> HTTP %d: %s", httpCode, body.c_str());
+    http.end();
+
+    if (httpCode == 200) {
+        LOGI(TAG, "Home server is healthy");
+        return true;
+    }
+
+    LOGW(TAG, "Unexpected health response: HTTP %d", httpCode);
+    return false;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
-    // Find first enabled WiFi entry
+    // Find the first enabled WiFi entry.
     bool hasCredentials = false;
     if (config) {
         for (int i = 0; i < MAX_WIFI_NETWORKS; i++) {
@@ -107,44 +230,24 @@ bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
 
     startMDNS();
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
-        uint8_t mac[6];
-        esp_efuse_mac_get_default(mac);
+    if (!generateKeyPair()) {
+        return false;
+    }
 
-        String ip = WiFi.localIP().toString();
-        String hostname = strlen(resolvedHostname) > 0
-            ? String(resolvedHostname) + ".local"
-            : "N/A";
+    if (!checkHealth()) {
+        LOGW(TAG, "Home server health check failed before handshake");
+        // Continue anyway — server may be slow to start.
+    }
 
-        char macStr[18];
-        snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    if (!performHandshake()) {
+        LOGE(TAG, "PlaceNet registration handshake failed");
+        return false;
+    }
 
-        String html = "<!DOCTYPE html><html><head>"
-            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-            "<title>PlaceNet Beacon</title>"
-            "<style>"
-            "body{font-family:sans-serif;margin:2em;background:#1a1a2e;color:#e0e0e0;}"
-            "h1{color:#00d4ff;}"
-            "table{border-collapse:collapse;margin-top:1em;}"
-            "td{padding:0.4em 1em;border-bottom:1px solid #333;}"
-            "td:first-child{font-weight:bold;color:#aaa;}"
-            "</style></head><body>"
-            "<h1>PlaceNet Beacon</h1>"
-            "<table>"
-            "<tr><td>Device</td><td>" + String(BOARD_VARIANT_NAME) + "</td></tr>"
-            "<tr><td>MAC</td><td>" + String(macStr) + "</td></tr>"
-            "<tr><td>IP</td><td>" + ip + "</td></tr>"
-            "<tr><td>WiFi Mode</td><td>STA</td></tr>"
-            "<tr><td>SSID</td><td>" + String(staSSID) + "</td></tr>"
-            "<tr><td>Hostname</td><td>" + hostname + "</td></tr>"
-            "</table></body></html>";
-
-        request->send(200, "text/html", html);
-    });
-
-    server.begin();
-    LOGI(TAG, "HTTP server started on port 80");
+    // Re-verify health after handshake.
+    if (!checkHealth()) {
+        LOGW(TAG, "Home server health check failed after handshake");
+    }
 
     return true;
 }
