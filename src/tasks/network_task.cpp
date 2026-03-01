@@ -1,12 +1,10 @@
 #include "network_task.h"
 #include "config.h"
 #include "logger.h"
-#include "placenet_keys.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
-#include <esp_mac.h>
 
 static const char* TAG = "NETWORK_TASK";
 
@@ -19,8 +17,7 @@ static char staSSID[MAX_SSID_LENGTH]         = {};
 static char staPassword[MAX_PASSWORD_LENGTH] = {};
 static const char* mdnsBase = "beacon";
 static char resolvedHostname[32] = "";
-
-static PlaceNetKeyPair g_keyPair;
+static const uint16_t ADVERTISE_PORT = 8883;
 
 // ── WiFi ──────────────────────────────────────────────────────────────────────
 
@@ -90,19 +87,6 @@ static bool startMDNS() {
     return false;
 }
 
-// ── Key generation ────────────────────────────────────────────────────────────
-
-static bool generateKeyPair() {
-    LOGI(TAG, "Generating EC P-256 key pair...");
-    if (!placenet_keygen(&g_keyPair)) {
-        LOGE(TAG, "Key generation failed");
-        return false;
-    }
-    LOGI(TAG, "Key pair generated successfully");
-    LOGD(TAG, "Public key:\n%s", g_keyPair.publicKeyPem);
-    return true;
-}
-
 // ── Registration handshake ────────────────────────────────────────────────────
 
 // Build the base URL for the home server.
@@ -115,26 +99,20 @@ static String homeServerBase() {
 }
 
 // POST / with X-PlaceNet-Init header and device registration JSON.
-// Returns true if the server responds 200 "Secure channel established".
+// Returns true if the server responds 200 "Device verified".
 static bool performHandshake() {
-    // Build device address string "ip:port" — we advertise ourselves on port 443
-    // so the home server can initiate a TLS callback.  The port here is the
-    // port the home server should try to reach us on; for now we use 443 as a
-    // placeholder (actual TLS listener is a future task).
-    String localIP   = WiFi.localIP().toString();
-    const uint16_t advertisePort = 443;
+    String localIP = WiFi.localIP().toString();
 
     char deviceAddress[64];
     snprintf(deviceAddress, sizeof(deviceAddress), "%s:%u",
-             localIP.c_str(), advertisePort);
+             localIP.c_str(), ADVERTISE_PORT);
 
-    // Build JSON payload.
+    // Build JSON payload per PlaceNet Initialization Protocol v0.0.1.
     JsonDocument doc;
-    doc["public_key"] = g_keyPair.publicKeyPem;
-    doc["address"]    = deviceAddress;
-    JsonObject mdns   = doc["mdns"].to<JsonObject>();
-    mdns["hostname"]  = resolvedHostname;
-    mdns["port"]      = advertisePort;
+    doc["address"]        = deviceAddress;
+    JsonObject mdns       = doc["mdns"].to<JsonObject>();
+    mdns["hostname"]      = resolvedHostname;
+    mdns["port"]          = ADVERTISE_PORT;
 
     String payload;
     serializeJson(doc, payload);
@@ -162,7 +140,7 @@ static bool performHandshake() {
     http.end();
 
     if (httpCode == 200) {
-        LOGI(TAG, "Handshake accepted by home server");
+        LOGI(TAG, "Device verified by home server");
         return true;
     }
 
@@ -229,10 +207,6 @@ bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
     }
 
     startMDNS();
-
-    if (!generateKeyPair()) {
-        return false;
-    }
 
     if (!checkHealth()) {
         LOGW(TAG, "Home server health check failed before handshake");
