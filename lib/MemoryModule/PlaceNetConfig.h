@@ -14,6 +14,26 @@ struct WiFiCredentials {
     }
 };
 
+struct MQTTTopic {
+    char topic[MAX_MQTT_TOPIC_LENGTH];
+    uint8_t qos;
+
+    MQTTTopic() : qos(0) {
+        memset(topic, 0, sizeof(topic));
+    }
+};
+
+struct MQTTBrokerInfo {
+    char address[MAX_MQTT_BROKER_LENGTH];
+    uint16_t port;
+    MQTTTopic topics[MAX_MQTT_TOPICS];
+    uint8_t topicCount;
+
+    MQTTBrokerInfo() : port(1883), topicCount(0) {
+        memset(address, 0, sizeof(address));
+    }
+};
+
 struct MQTTConfig {
     char broker[MAX_MQTT_BROKER_LENGTH];
     uint16_t port;

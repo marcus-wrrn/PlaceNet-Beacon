@@ -12,6 +12,7 @@
 #define SD_MOUNT_POINT "/sd"
 #define SD_MAX_FILES 10
 #define CONFIG_FILE_PATH "/config.json"
+#define MQTT_BROKER_FILE_PATH "/mqtt_broker.json"
 
 class SDCardModule {
 public:
@@ -35,6 +36,10 @@ public:
     bool loadConfig(PlaceNetConfig* config);
     bool saveConfig(const PlaceNetConfig* config);
     bool configExists();
+
+    bool saveMQTTBroker(const MQTTBrokerInfo* broker);
+    bool loadMQTTBroker(MQTTBrokerInfo* broker);
+    bool mqttBrokerExists();
 
     uint64_t getCardSize();
     uint8_t getCardType();

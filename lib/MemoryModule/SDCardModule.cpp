@@ -207,6 +207,99 @@ bool SDCardModule::configExists() {
     return fileExists(CONFIG_FILE_PATH);
 }
 
+bool SDCardModule::mqttBrokerExists() {
+    return fileExists(MQTT_BROKER_FILE_PATH);
+}
+
+bool SDCardModule::saveMQTTBroker(const MQTTBrokerInfo* broker) {
+    if (!broker) {
+        LOGE(TAG, "Null broker pointer");
+        return false;
+    }
+
+    if (!initialized_) {
+        LOGE(TAG, "SD card not initialized");
+        return false;
+    }
+
+    JsonDocument doc;
+    doc["address"] = broker->address;
+    doc["port"]    = broker->port;
+
+    JsonArray topicsArray = doc["topics"].to<JsonArray>();
+    for (uint8_t i = 0; i < broker->topicCount && i < MAX_MQTT_TOPICS; i++) {
+        JsonObject t = topicsArray.add<JsonObject>();
+        t["topic"] = broker->topics[i].topic;
+        t["qos"]   = broker->topics[i].qos;
+    }
+
+    char buffer[2048];
+    size_t written = serializeJsonPretty(doc, buffer, sizeof(buffer));
+    if (written == 0 || written >= sizeof(buffer) - 1) {
+        LOGE(TAG, "MQTT broker JSON serialization failed");
+        return false;
+    }
+
+    bool success = writeFile(MQTT_BROKER_FILE_PATH, buffer);
+    if (success) {
+        LOGI(TAG, "MQTT broker info saved to %s", MQTT_BROKER_FILE_PATH);
+    }
+    return success;
+}
+
+bool SDCardModule::loadMQTTBroker(MQTTBrokerInfo* broker) {
+    if (!broker) {
+        LOGE(TAG, "Null broker pointer");
+        return false;
+    }
+
+    if (!initialized_) {
+        LOGE(TAG, "SD card not initialized");
+        return false;
+    }
+
+    if (!fileExists(MQTT_BROKER_FILE_PATH)) {
+        LOGW(TAG, "MQTT broker file does not exist: %s", MQTT_BROKER_FILE_PATH);
+        return false;
+    }
+
+    char buffer[2048];
+    if (!readFile(MQTT_BROKER_FILE_PATH, buffer, sizeof(buffer))) {
+        return false;
+    }
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, buffer);
+    if (error) {
+        LOGE(TAG, "MQTT broker JSON parse error: %s", error.c_str());
+        return false;
+    }
+
+    *broker = MQTTBrokerInfo();
+
+    const char* address = doc["address"];
+    if (address) {
+        strncpy(broker->address, address, MAX_MQTT_BROKER_LENGTH - 1);
+    }
+    broker->port = doc["port"] | 1883;
+
+    JsonArray topicsArray = doc["topics"];
+    if (topicsArray) {
+        for (JsonObject t : topicsArray) {
+            if (broker->topicCount >= MAX_MQTT_TOPICS) break;
+            const char* topic = t["topic"];
+            if (topic) {
+                strncpy(broker->topics[broker->topicCount].topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
+            }
+            broker->topics[broker->topicCount].qos = t["qos"] | 0;
+            broker->topicCount++;
+        }
+    }
+
+    LOGI(TAG, "MQTT broker loaded: %s:%u (%u topics)", broker->address, broker->port, broker->topicCount);
+    return true;
+}
+
 bool SDCardModule::loadConfig(PlaceNetConfig* config) {
     if (!config) {
         LOGE(TAG, "Null config pointer");

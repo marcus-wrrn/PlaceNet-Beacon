@@ -8,6 +8,7 @@
 #define MAX_MQTT_CLIENT_ID_LENGTH 32
 #define MAX_HTTP_SERVER_LENGTH   128
 #define MAX_WIFI_NETWORKS        3
+#define MAX_MQTT_TOPICS          8
 
 // Supported Boards:
 // - T-Beam S3 Supreme (8MB Flash 8MB PSRAM)

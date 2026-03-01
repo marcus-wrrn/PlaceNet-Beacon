@@ -98,9 +98,45 @@ static String homeServerBase() {
     return url;
 }
 
+// Parse the MQTT broker JSON returned by the server and fill out a MQTTBrokerInfo.
+static bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out) {
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, body);
+    if (error) {
+        LOGE(TAG, "Failed to parse MQTT broker response: %s", error.c_str());
+        return false;
+    }
+
+    const char* address = doc["address"];
+    if (!address) {
+        LOGE(TAG, "MQTT broker response missing 'address'");
+        return false;
+    }
+
+    *out = MQTTBrokerInfo();
+    strncpy(out->address, address, MAX_MQTT_BROKER_LENGTH - 1);
+    out->port = doc["port"] | 1883;
+
+    JsonArray topics = doc["topics"];
+    if (topics) {
+        for (JsonObject t : topics) {
+            if (out->topicCount >= MAX_MQTT_TOPICS) break;
+            const char* topic = t["topic"];
+            if (topic) {
+                strncpy(out->topics[out->topicCount].topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
+            }
+            out->topics[out->topicCount].qos = t["qos"] | 0;
+            out->topicCount++;
+        }
+    }
+
+    LOGI(TAG, "Parsed MQTT broker: %s:%u (%u topics)", out->address, out->port, out->topicCount);
+    return true;
+}
+
 // POST / with X-PlaceNet-Init header and device registration JSON.
-// Returns true if the server responds 200 "Device verified".
-static bool performHandshake() {
+// On success (HTTP 200) fills responseBody with the server's response.
+static bool performHandshake(String& responseBody) {
     String localIP = WiFi.localIP().toString();
 
     char deviceAddress[64];
@@ -135,8 +171,8 @@ static bool performHandshake() {
         return false;
     }
 
-    String body = http.getString();
-    LOGI(TAG, "POST / -> HTTP %d: %s", httpCode, body.c_str());
+    responseBody = http.getString();
+    LOGI(TAG, "POST / -> HTTP %d: %s", httpCode, responseBody.c_str());
     http.end();
 
     if (httpCode == 200) {
@@ -181,7 +217,7 @@ static bool checkHealth() {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
+bool setupNetworkTask(PlaceNetConfig* config, SDCardModule* sd, uint32_t stackDepth) {
     // Find the first enabled WiFi entry.
     bool hasCredentials = false;
     if (config) {
@@ -213,10 +249,24 @@ bool setupNetworkTask(PlaceNetConfig* config, uint32_t stackDepth) {
         // Continue anyway — server may be slow to start.
     }
 
-    if (!performHandshake()) {
+    String brokerResponse;
+    if (!performHandshake(brokerResponse)) {
         LOGE(TAG, "PlaceNet registration handshake failed");
         return false;
     }
+
+#ifdef HAS_SDCARD
+    if (sd && sd->isInitialized()) {
+        MQTTBrokerInfo brokerInfo;
+        if (parseMQTTBrokerResponse(brokerResponse, &brokerInfo)) {
+            if (!sd->saveMQTTBroker(&brokerInfo)) {
+                LOGW(TAG, "Failed to save MQTT broker info to SD");
+            }
+        } else {
+            LOGW(TAG, "Could not parse MQTT broker info from handshake response");
+        }
+    }
+#endif
 
     // Re-verify health after handshake.
     if (!checkHealth()) {

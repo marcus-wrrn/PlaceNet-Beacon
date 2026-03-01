@@ -59,7 +59,7 @@ static void enterOperational(SupervisorContext* ctx) {
     }
 #endif
 
-    setupNetworkTask(ctx->config, 8192 * 2);
+    setupNetworkTask(ctx->config, ctx->sd, 8192 * 2);
 
     g_state = STATE_OPERATIONAL;
     LOGI(TAG, "Worker tasks spawned");
