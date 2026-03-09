@@ -3,6 +3,10 @@
 #include <Arduino.h>
 #include "config.h"
 
+#ifdef HAS_SDCARD
+class SDCardModule;
+#endif
+
 struct WiFiCredentials {
     char ssid[MAX_SSID_LENGTH];
     char password[MAX_PASSWORD_LENGTH];
@@ -84,6 +88,10 @@ public:
 
     void reset();
     void print() const;
+
+#ifdef HAS_SDCARD
+    bool resetHard(SDCardModule* sd);
+#endif
     bool validate() const;
     bool isSetUp() const;
 

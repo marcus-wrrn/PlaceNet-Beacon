@@ -68,6 +68,8 @@ src/
 
 test/
 ├── embedded/
+│   ├── test_ble_provisioning/
+│   │   └── test_ble_provisioning.cpp
 │   └── test_placenet_config_hw/
 │       └── test_placenet_config_hw.cpp
 ├── mock/

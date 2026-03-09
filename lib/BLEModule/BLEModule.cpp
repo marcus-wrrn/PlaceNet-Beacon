@@ -43,7 +43,7 @@ bool BLEModule::init() {
         LOGE(TAG, "Failed to create BLE server");
         return false;
     }
-    server_->setCallbacks(&serverCallbacks_);
+    server_->setCallbacks(&serverCallbacks_, false);
 
     if (!createWiFiService()) {
         LOGE(TAG, "Failed to create WiFi provisioning service");

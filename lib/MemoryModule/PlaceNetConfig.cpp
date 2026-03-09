@@ -1,6 +1,10 @@
 #include "PlaceNetConfig.h"
 #include "logger.h"
 
+#ifdef HAS_SDCARD
+#include "SDCardModule.h"
+#endif
+
 static const char* TAG = "CONFIG";
 
 PlaceNetConfig::PlaceNetConfig() {
@@ -15,6 +19,30 @@ void PlaceNetConfig::reset() {
     httpServer = HTTPServerConfig();
     beacon = BeaconConfig();
 }
+
+#ifdef HAS_SDCARD
+bool PlaceNetConfig::resetHard(SDCardModule* sd) {
+    bool success = true;
+
+    if (!sd || !sd->isInitialized()) {
+        LOGE(TAG, "resetHard: SD card not available");
+        success = false;
+    } else {
+        if (sd->configExists() && !sd->deleteFile(CONFIG_FILE_PATH)) {
+            LOGE(TAG, "resetHard: failed to delete config file");
+            success = false;
+        }
+        if (sd->mqttBrokerExists() && !sd->deleteFile(MQTT_BROKER_FILE_PATH)) {
+            LOGE(TAG, "resetHard: failed to delete MQTT broker file");
+            success = false;
+        }
+    }
+
+    reset();
+    LOGI(TAG, "resetHard: config reset%s", success ? " and SD files erased" : " (SD erase incomplete)");
+    return success;
+}
+#endif
 
 bool PlaceNetConfig::isValidSSID(const char* ssid) const {
     if (!ssid || strlen(ssid) == 0) {
