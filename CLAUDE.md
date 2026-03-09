@@ -50,6 +50,10 @@ src/
 ├── managers/
 │   ├── gps_manager.cpp
 │   ├── gps_manager.h
+│   ├── http_manager.cpp
+│   ├── http_manager.h
+│   ├── network_manager.cpp
+│   ├── network_manager.h
 │   ├── pmu_manager.cpp
 │   └── pmu_manager.h
 └── tasks/
@@ -59,8 +63,6 @@ src/
     ├── lora_task.h
     ├── main_task.cpp
     ├── main_task.h
-    ├── network_task.cpp
-    ├── network_task.h
     ├── pmu_task.cpp
     └── pmu_task.h
 

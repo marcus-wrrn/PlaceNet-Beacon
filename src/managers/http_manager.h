@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "PlaceNetConfig.h"
 
 class HTTPManager {
 public:
@@ -9,7 +10,10 @@ public:
     bool checkHealth();
     bool performHandshake(const char* deviceAddress,
                           const char* mdnsHostname,
-                          uint16_t mdnsPort);
+                          uint16_t mdnsPort,
+                          String& responseBody);
+
+    bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out);
 
 private:
     String baseUrl() const;

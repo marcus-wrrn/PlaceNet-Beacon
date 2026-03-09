@@ -1,6 +1,6 @@
 #include "main_task.h"
 #include "lora_task.h"
-#include "network_task.h"
+#include "managers/network_manager.h"
 #include "LoRaModule.h"
 #include "logger.h"
 #include <freertos/FreeRTOS.h>
@@ -59,7 +59,8 @@ static void enterOperational(SupervisorContext* ctx) {
     }
 #endif
 
-    setupNetworkTask(ctx->config, ctx->sd, 8192 * 2);
+    NetworkManager networkManager(ctx->config, ctx->sd);
+    networkManager.setup();
 
     g_state = STATE_OPERATIONAL;
     LOGI(TAG, "Worker tasks spawned");
