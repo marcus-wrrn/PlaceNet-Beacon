@@ -35,8 +35,8 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
 
 // ── NetworkManager ────────────────────────────────────────────────────────────
 
-NetworkManager::NetworkManager(PlaceNetConfig* config, SDCardModule* sd)
-    : config_(config), sd_(sd) {}
+NetworkManager::NetworkManager(PlaceNetConfig* config, SDCardModule* sd, BLEModule* ble)
+    : config_(config), sd_(sd), ble_(ble) {}
 
 bool NetworkManager::connectWiFi() {
     if (strlen(staSSID_) == 0) {
@@ -86,6 +86,13 @@ bool NetworkManager::startMDNS() {
 }
 
 bool NetworkManager::setup() {
+    // Stop BLE before starting WiFi — they share the radio.
+    if (ble_) {
+        LOGI(TAG, "Stopping BLE before WiFi init");
+        ble_->stop();
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
     // Extract the first enabled WiFi entry from config.
     bool hasCredentials = false;
     if (config_) {

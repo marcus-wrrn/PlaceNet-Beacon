@@ -59,7 +59,7 @@ static void enterOperational(SupervisorContext* ctx) {
     }
 #endif
 
-    NetworkManager networkManager(ctx->config, ctx->sd);
+    NetworkManager networkManager(ctx->config, ctx->sd, ctx->ble);
     networkManager.setup();
 
     g_state = STATE_OPERATIONAL;
@@ -227,9 +227,7 @@ void mainTask(void* pvParameters) {
             }
 
             case STATE_TRANSITIONING: {
-                LOGI(TAG, "Transitioning: stopping BLE...");
-                ctx->ble->stop();
-                vTaskDelay(pdMS_TO_TICKS(500));  // let radio settle
+                LOGI(TAG, "Transitioning: entering operational mode");
                 enterOperational(ctx);
                 break;
             }
