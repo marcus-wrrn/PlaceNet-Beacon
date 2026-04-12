@@ -52,6 +52,8 @@ src/
 │   ├── gps_manager.h
 │   ├── http_manager.cpp
 │   ├── http_manager.h
+│   ├── mqtt_manager.cpp
+│   ├── mqtt_manager.h
 │   ├── network_manager.cpp
 │   ├── network_manager.h
 │   ├── pmu_manager.cpp

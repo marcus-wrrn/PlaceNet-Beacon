@@ -61,6 +61,7 @@ static void enterOperational(SupervisorContext* ctx) {
 
     NetworkManager networkManager(ctx->config, ctx->sd, ctx->ble);
     networkManager.setup();
+    ctx->mqtt = networkManager.takeMqttManager();
 
     g_state = STATE_OPERATIONAL;
     LOGI(TAG, "Worker tasks spawned");
@@ -83,6 +84,10 @@ static void runOperationalLoop(SupervisorContext* ctx) {
 #endif
 
     while (true) {
+        if (ctx->mqtt) {
+            ctx->mqtt->loop();
+        }
+
 #ifdef HAS_PMU
         if (pmuManager.updatePMU()) {
             currentState.batteryVoltage = pmuManager.getState().battery_voltage;

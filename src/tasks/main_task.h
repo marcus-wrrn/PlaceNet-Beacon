@@ -8,6 +8,9 @@
 #include "PlaceNetConfig.h"
 #include "SDCardModule.h"
 
+// Forward declaration — full definition pulled in via network_manager.h in .cpp files.
+class MQTTManager;
+
 #ifdef DISPLAY_MODEL
 #include "DisplayModule.h"
 extern DisplayModule display;
@@ -31,6 +34,7 @@ struct SupervisorContext {
     BLEModule*      ble;
     PlaceNetConfig* config;
     SDCardModule*   sd;
+    MQTTManager*    mqtt = nullptr;
 #ifdef HAS_GPS
     GPSModule*      gps;
 #endif

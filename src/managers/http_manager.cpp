@@ -25,6 +25,7 @@ bool HTTPManager::checkHealth() {
 
     HTTPClient http;
     http.begin(url);
+    http.addHeader("X-PlaceNet-Health", "0.0.1");
     http.setTimeout(5000);
 
     int httpCode = http.GET();
@@ -51,12 +52,16 @@ bool HTTPManager::checkHealth() {
 bool HTTPManager::performHandshake(const char* deviceAddress,
                                    const char* mdnsHostname,
                                    uint16_t mdnsPort,
+                                   const char* csrPem,
                                    String& responseBody) {
     JsonDocument doc;
     doc["address"]           = deviceAddress;
     JsonObject mdns          = doc["mdns"].to<JsonObject>();
     mdns["hostname"]         = mdnsHostname;
     mdns["port"]             = mdnsPort;
+    if (csrPem && csrPem[0] != '\0') {
+        doc["csr_pem"]       = csrPem;
+    }
 
     String payload;
     serializeJson(doc, payload);
@@ -92,25 +97,38 @@ bool HTTPManager::performHandshake(const char* deviceAddress,
     return false;
 }
 
-bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out) {
+bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem) {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
-        LOGE(TAG, "Failed to parse MQTT broker response: %s", error.c_str());
+        LOGE(TAG, "Failed to parse handshake response: %s", error.c_str());
         return false;
     }
 
-    const char* address = doc["address"];
+    const char* cert = doc["cert_pem"];
+    if (!cert) {
+        LOGE(TAG, "Handshake response missing 'cert_pem'");
+        return false;
+    }
+    certPem = cert;
+
+    JsonObject brokerage = doc["brokerage"];
+    if (brokerage.isNull()) {
+        LOGE(TAG, "Handshake response missing 'brokerage'");
+        return false;
+    }
+
+    const char* address = brokerage["address"];
     if (!address) {
-        LOGE(TAG, "MQTT broker response missing 'address'");
+        LOGE(TAG, "Brokerage missing 'address'");
         return false;
     }
 
     *out = MQTTBrokerInfo();
     strncpy(out->address, address, MAX_MQTT_BROKER_LENGTH - 1);
-    out->port = doc["port"] | 1883;
+    out->port = brokerage["port"] | 1883;
 
-    JsonArray topics = doc["topics"];
+    JsonArray topics = brokerage["topics"];
     if (topics) {
         for (JsonObject t : topics) {
             if (out->topicCount >= MAX_MQTT_TOPICS) break;

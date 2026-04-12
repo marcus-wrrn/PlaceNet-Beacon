@@ -1,6 +1,8 @@
 #include "network_manager.h"
 #include "http_manager.h"
+#include "mqtt_manager.h"
 #include "logger.h"
+#include "placenet_keys.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
 
@@ -126,32 +128,66 @@ bool NetworkManager::setup() {
         // Continue anyway — server may be slow to start.
     }
 
+    // Generate device key pair and CSR for registration.
+    PlaceNetKeyPair keyPair;
+    char csrPem[PLACENET_CSR_PEM_SIZE] = {};
+    if (!placenet_keygen(&keyPair)) {
+        LOGE(TAG, "Failed to generate device key pair");
+        return false;
+    }
+    if (!placenet_csr_generate(&keyPair, "CN=placenet-beacon", csrPem, sizeof(csrPem))) {
+        LOGE(TAG, "Failed to generate CSR");
+        placenet_keyfree(&keyPair);
+        return false;
+    }
+    LOGI(TAG, "Device CSR generated");
+
     char deviceAddress[64];
     snprintf(deviceAddress, sizeof(deviceAddress), "%s:%u",
              WiFi.localIP().toString().c_str(), ADVERTISE_PORT);
 
     String brokerResponse;
-    if (!http.performHandshake(deviceAddress, resolvedHostname_, ADVERTISE_PORT, brokerResponse)) {
+    if (!http.performHandshake(deviceAddress, resolvedHostname_, ADVERTISE_PORT, csrPem, brokerResponse)) {
         LOGE(TAG, "PlaceNet registration handshake failed");
+        placenet_keyfree(&keyPair);
         return false;
     }
+    placenet_keyfree(&keyPair);
 
+    MQTTBrokerInfo brokerInfo;
+    String certPem;
+    if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo, certPem)) {
 #ifdef HAS_SDCARD
-    if (sd_ && sd_->isInitialized()) {
-        MQTTBrokerInfo brokerInfo;
-        if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo)) {
+        if (sd_ && sd_->isInitialized()) {
             if (!sd_->saveMQTTBroker(&brokerInfo)) {
                 LOGW(TAG, "Failed to save MQTT broker info to SD");
             }
-        } else {
-            LOGW(TAG, "Could not parse MQTT broker info from handshake response");
+            if (!sd_->writeFile(DEVICE_CERT_FILE_PATH, certPem.c_str())) {
+                LOGW(TAG, "Failed to save device certificate to SD");
+            } else {
+                LOGI(TAG, "Device certificate saved to " DEVICE_CERT_FILE_PATH);
+            }
         }
-    }
 #endif
+
+        mqttManager_ = new MQTTManager();
+        if (!mqttManager_->connect(brokerInfo, resolvedHostname_,
+                                   deviceAddress, resolvedHostname_, ADVERTISE_PORT)) {
+            LOGW(TAG, "Initial MQTT connection failed — will retry in background");
+        }
+    } else {
+        LOGW(TAG, "Could not parse handshake response");
+    }
 
     if (!http.checkHealth()) {
         LOGW(TAG, "Home server health check failed after handshake");
     }
 
     return true;
+}
+
+MQTTManager* NetworkManager::takeMqttManager() {
+    MQTTManager* m = mqttManager_;
+    mqttManager_   = nullptr;
+    return m;
 }

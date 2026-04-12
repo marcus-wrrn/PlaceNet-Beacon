@@ -11,9 +11,10 @@ public:
     bool performHandshake(const char* deviceAddress,
                           const char* mdnsHostname,
                           uint16_t mdnsPort,
+                          const char* csrPem,
                           String& responseBody);
 
-    bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out);
+    bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem);
 
 private:
     String baseUrl() const;

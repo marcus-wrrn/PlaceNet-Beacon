@@ -1,6 +1,6 @@
 #pragma once
 
-// PlaceNet device identity key pair.
+// PlaceNet device identity key pair and CSR generation.
 //
 // An EC P-256 key pair is generated once at runtime using mbedTLS and held in
 // these globals.  The public key is exported as a PEM string so it can be
@@ -14,10 +14,14 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/error.h>
+#include <mbedtls/x509_csr.h>
 #include <string.h>
 
 // Maximum size of a PEM-encoded EC P-256 public key (including null terminator).
 #define PLACENET_PUBLIC_KEY_PEM_SIZE  256
+
+// Maximum size of a PEM-encoded CSR (including null terminator).
+#define PLACENET_CSR_PEM_SIZE         1024
 
 // Holds the generated key pair for the lifetime of the session.
 struct PlaceNetKeyPair {
@@ -71,4 +75,32 @@ inline void placenet_keyfree(PlaceNetKeyPair* kp) {
     mbedtls_entropy_free(&kp->entropy);
     mbedtls_ctr_drbg_free(&kp->ctr_drbg);
     kp->valid = false;
+}
+
+// Generate a PEM-encoded CSR from an existing valid key pair.
+// subject should be an RFC 4514 string, e.g. "CN=placenet-beacon".
+// csrPem must point to a buffer of at least PLACENET_CSR_PEM_SIZE bytes.
+// Returns true on success.
+inline bool placenet_csr_generate(PlaceNetKeyPair* kp,
+                                   const char* subject,
+                                   char* csrPem,
+                                   size_t csrPemSize) {
+    if (!kp || !kp->valid || !csrPem || csrPemSize == 0) return false;
+
+    mbedtls_x509write_csr csr;
+    mbedtls_x509write_csr_init(&csr);
+    mbedtls_x509write_csr_set_key(&csr, &kp->pk);
+    mbedtls_x509write_csr_set_md_alg(&csr, MBEDTLS_MD_SHA256);
+
+    int ret = mbedtls_x509write_csr_set_subject_name(&csr, subject);
+    if (ret != 0) {
+        mbedtls_x509write_csr_free(&csr);
+        return false;
+    }
+
+    ret = mbedtls_x509write_csr_pem(&csr,
+                                     (unsigned char*)csrPem, csrPemSize,
+                                     mbedtls_ctr_drbg_random, &kp->ctr_drbg);
+    mbedtls_x509write_csr_free(&csr);
+    return ret == 0;
 }
