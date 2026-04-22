@@ -175,7 +175,7 @@ void setup() {
     ctx.gps = g_gps;
 #endif
 
-    setupMainTask(&ctx, 8192);
+    setupMainTask(&ctx, 16384);
 
     LOGI(TAG, "===========================================");
     LOGI(TAG, "Setup complete");

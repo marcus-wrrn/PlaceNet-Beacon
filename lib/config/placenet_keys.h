@@ -18,10 +18,13 @@
 #include <string.h>
 
 // Maximum size of a PEM-encoded EC P-256 public key (including null terminator).
-#define PLACENET_PUBLIC_KEY_PEM_SIZE  256
+#define PLACENET_PUBLIC_KEY_PEM_SIZE   256
+
+// Maximum size of a PEM-encoded EC P-256 private key (including null terminator).
+#define PLACENET_PRIVATE_KEY_PEM_SIZE  512
 
 // Maximum size of a PEM-encoded CSR (including null terminator).
-#define PLACENET_CSR_PEM_SIZE         1024
+#define PLACENET_CSR_PEM_SIZE          1024
 
 // Holds the generated key pair for the lifetime of the session.
 struct PlaceNetKeyPair {
@@ -29,6 +32,7 @@ struct PlaceNetKeyPair {
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
     char publicKeyPem[PLACENET_PUBLIC_KEY_PEM_SIZE];
+    char privateKeyPem[PLACENET_PRIVATE_KEY_PEM_SIZE];
     bool valid;
 };
 
@@ -41,6 +45,7 @@ inline bool placenet_keygen(PlaceNetKeyPair* kp) {
     mbedtls_entropy_init(&kp->entropy);
     mbedtls_ctr_drbg_init(&kp->ctr_drbg);
     memset(kp->publicKeyPem, 0, sizeof(kp->publicKeyPem));
+    memset(kp->privateKeyPem, 0, sizeof(kp->privateKeyPem));
     kp->valid = false;
 
     const char* pers = "placenet_keygen";
@@ -62,6 +67,11 @@ inline bool placenet_keygen(PlaceNetKeyPair* kp) {
     ret = mbedtls_pk_write_pubkey_pem(&kp->pk,
                                        (unsigned char*)kp->publicKeyPem,
                                        sizeof(kp->publicKeyPem));
+    if (ret != 0) return false;
+
+    ret = mbedtls_pk_write_key_pem(&kp->pk,
+                                    (unsigned char*)kp->privateKeyPem,
+                                    sizeof(kp->privateKeyPem));
     if (ret != 0) return false;
 
     kp->valid = true;

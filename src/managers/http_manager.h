@@ -14,7 +14,7 @@ public:
                           const char* csrPem,
                           String& responseBody);
 
-    bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem);
+    bool parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem, String& caCertPem);
 
 private:
     String baseUrl() const;

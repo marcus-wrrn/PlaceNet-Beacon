@@ -146,6 +146,10 @@ bool NetworkManager::setup() {
     snprintf(deviceAddress, sizeof(deviceAddress), "%s:%u",
              WiFi.localIP().toString().c_str(), ADVERTISE_PORT);
 
+    // Capture the private key PEM before freeing the key pair — it's needed
+    // for mutual TLS and the key pair is freed immediately after the handshake.
+    String deviceKeyPem(keyPair.privateKeyPem);
+
     String brokerResponse;
     if (!http.performHandshake(deviceAddress, resolvedHostname_, ADVERTISE_PORT, csrPem, brokerResponse)) {
         LOGE(TAG, "PlaceNet registration handshake failed");
@@ -156,7 +160,8 @@ bool NetworkManager::setup() {
 
     MQTTBrokerInfo brokerInfo;
     String certPem;
-    if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo, certPem)) {
+    String caCertPem;
+    if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo, certPem, caCertPem)) {
 #ifdef HAS_SDCARD
         if (sd_ && sd_->isInitialized()) {
             if (!sd_->saveMQTTBroker(&brokerInfo)) {
@@ -167,13 +172,19 @@ bool NetworkManager::setup() {
             } else {
                 LOGI(TAG, "Device certificate saved to " DEVICE_CERT_FILE_PATH);
             }
+            if (!sd_->writeFile(CA_CERT_FILE_PATH, caCertPem.c_str())) {
+                LOGW(TAG, "Failed to save CA certificate to SD");
+            } else {
+                LOGI(TAG, "CA certificate saved to " CA_CERT_FILE_PATH);
+            }
         }
 #endif
 
         mqttManager_ = new MQTTManager();
         if (!mqttManager_->connect(brokerInfo, resolvedHostname_,
-                                   deviceAddress, resolvedHostname_, ADVERTISE_PORT)) {
-            LOGW(TAG, "Initial MQTT connection failed — will retry in background");
+                                   deviceAddress, resolvedHostname_, ADVERTISE_PORT,
+                                   caCertPem.c_str(), certPem.c_str(), deviceKeyPem.c_str())) {
+            LOGW(TAG, "Initial MQTTS connection failed — will retry in background");
         }
     } else {
         LOGW(TAG, "Could not parse handshake response");

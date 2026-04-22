@@ -97,7 +97,7 @@ bool HTTPManager::performHandshake(const char* deviceAddress,
     return false;
 }
 
-bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem) {
+bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem, String& caCertPem) {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
@@ -117,6 +117,13 @@ bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* ou
         LOGE(TAG, "Handshake response missing 'brokerage'");
         return false;
     }
+
+    const char* caCert = brokerage["ca_cert_pem"];
+    if (!caCert) {
+        LOGE(TAG, "Brokerage missing 'ca_cert_pem'");
+        return false;
+    }
+    caCertPem = caCert;
 
     const char* address = brokerage["address"];
     if (!address) {

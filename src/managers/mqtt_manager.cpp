@@ -25,31 +25,37 @@ bool MQTTManager::connect(const MQTTBrokerInfo& brokerInfo,
                            const char* clientId,
                            const char* deviceAddress,
                            const char* mdnsHostname,
-                           uint16_t mdnsPort) {
+                           uint16_t mdnsPort,
+                           const char* caCertPem,
+                           const char* deviceCertPem,
+                           const char* deviceKeyPem) {
     brokerInfo_ = brokerInfo;
     strncpy(clientId_,      clientId,      sizeof(clientId_) - 1);
     strncpy(deviceAddress_, deviceAddress, sizeof(deviceAddress_) - 1);
     strncpy(mdnsHostname_,  mdnsHostname,  sizeof(mdnsHostname_) - 1);
     mdnsPort_ = mdnsPort;
 
-    // TODO: implement MQTTS — swap wifiClient_ for a WiFiClientSecure, load
-    // the CA cert returned in the handshake response, and switch to the MQTTS
-    // port (brokerInfo_.port will already reflect the correct port once
-    // placenet-home sets MQTT_TLS_ENABLED=true).
+    caCertPem_     = caCertPem;
+    deviceCertPem_ = deviceCertPem;
+    deviceKeyPem_  = deviceKeyPem;
 
     mqttClient_.setServer(brokerInfo_.address, brokerInfo_.port);
     mqttClient_.setKeepAlive(60);
     mqttClient_.setSocketTimeout(10);
 
-    LOGI(TAG, "Connecting to MQTT broker %s:%u as '%s'",
+    LOGI(TAG, "Connecting to MQTTS broker %s:%u as '%s' (cert auth)",
          brokerInfo_.address, brokerInfo_.port, clientId_);
 
     return attemptConnect();
 }
 
 bool MQTTManager::attemptConnect() {
+    wifiClient_.setCACert(caCertPem_.c_str());
+    wifiClient_.setCertificate(deviceCertPem_.c_str());
+    wifiClient_.setPrivateKey(deviceKeyPem_.c_str());
+
     if (!mqttClient_.connect(clientId_)) {
-        LOGW(TAG, "MQTT connect failed (rc=%d) — will retry in %lums",
+        LOGW(TAG, "MQTTS connect failed (rc=%d) — will retry in %lums",
              mqttClient_.state(), kReconnectIntervalMs);
         lastReconnectAttemptMs_ = millis();
         return false;

@@ -11,9 +11,10 @@
 
 #define SD_MOUNT_POINT "/sd"
 #define SD_MAX_FILES 10
-#define CONFIG_FILE_PATH "/config.json"
+#define CONFIG_FILE_PATH      "/config.json"
 #define MQTT_BROKER_FILE_PATH "/mqtt_broker.json"
 #define DEVICE_CERT_FILE_PATH "/device_cert.pem"
+#define CA_CERT_FILE_PATH     "/ca_cert.pem"
 
 class SDCardModule {
 public:
