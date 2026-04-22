@@ -162,23 +162,23 @@ bool NetworkManager::setup() {
     String certPem;
     String caCertPem;
     if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo, certPem, caCertPem)) {
-#ifdef HAS_SDCARD
-        if (sd_ && sd_->isInitialized()) {
-            if (!sd_->saveMQTTBroker(&brokerInfo)) {
-                LOGW(TAG, "Failed to save MQTT broker info to SD");
-            }
-            if (!sd_->writeFile(DEVICE_CERT_FILE_PATH, certPem.c_str())) {
-                LOGW(TAG, "Failed to save device certificate to SD");
-            } else {
-                LOGI(TAG, "Device certificate saved to " DEVICE_CERT_FILE_PATH);
-            }
-            if (!sd_->writeFile(CA_CERT_FILE_PATH, caCertPem.c_str())) {
-                LOGW(TAG, "Failed to save CA certificate to SD");
-            } else {
-                LOGI(TAG, "CA certificate saved to " CA_CERT_FILE_PATH);
-            }
-        }
-#endif
+// #ifdef HAS_SDCARD
+//         if (sd_ && sd_->isInitialized()) {
+//             if (!sd_->saveMQTTBroker(&brokerInfo)) {
+//                 LOGW(TAG, "Failed to save MQTT broker info to SD");
+//             }
+//             if (!sd_->writeFile(DEVICE_CERT_FILE_PATH, certPem.c_str())) {
+//                 LOGW(TAG, "Failed to save device certificate to SD");
+//             } else {
+//                 LOGI(TAG, "Device certificate saved to " DEVICE_CERT_FILE_PATH);
+//             }
+//             if (!sd_->writeFile(CA_CERT_FILE_PATH, caCertPem.c_str())) {
+//                 LOGW(TAG, "Failed to save CA certificate to SD");
+//             } else {
+//                 LOGI(TAG, "CA certificate saved to " CA_CERT_FILE_PATH);
+//             }
+//         }
+// #endif
 
         mqttManager_ = new MQTTManager();
         if (!mqttManager_->connect(brokerInfo, resolvedHostname_,
