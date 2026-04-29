@@ -1,3 +1,1 @@
-Acts as a bridge between the PlaceNet Protocol and the Internet Protocol for area locked websites. 
-
-Communicates via MQTT to 
+Primary Access Point to a PlaceNet.  Used for discovery and authentication only, content is not served over the beacon. All content is served over standard IP
