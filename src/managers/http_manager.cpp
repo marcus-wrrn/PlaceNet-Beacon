@@ -97,7 +97,7 @@ bool HTTPManager::performHandshake(const char* deviceAddress,
     return false;
 }
 
-bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* out, String& certPem, String& caCertPem) {
+bool HTTPManager::parseHandshakeResponse(const String& body, MQTTBrokerInfo* out, String& certPem, String& caCertPem) {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
@@ -148,6 +148,18 @@ bool HTTPManager::parseMQTTBrokerResponse(const String& body, MQTTBrokerInfo* ou
         }
     }
 
-    LOGI(TAG, "Parsed MQTT broker: %s:%u (%u topics)", out->address, out->port, out->topicCount);
+    const char* beaconId = doc["beacon_id"];
+    if (beaconId) {
+        strncpy(out->beaconId, beaconId, sizeof(out->beaconId) - 1);
+    }
+
+    const char* broadcastTopic = doc["broadcast_topic"];
+    if (broadcastTopic && out->topicCount < MAX_MQTT_TOPICS) {
+        strncpy(out->topics[out->topicCount].topic, broadcastTopic, MAX_MQTT_TOPIC_LENGTH - 1);
+        out->topics[out->topicCount].qos = 1;
+        out->topicCount++;
+    }
+
+    LOGI(TAG, "Parsed MQTT broker: %s:%u (%u topics), beacon_id: %s", out->address, out->port, out->topicCount, out->beaconId);
     return true;
 }

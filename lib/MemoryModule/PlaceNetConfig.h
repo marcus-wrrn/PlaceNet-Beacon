@@ -32,9 +32,11 @@ struct MQTTBrokerInfo {
     uint16_t port;
     MQTTTopic topics[MAX_MQTT_TOPICS];
     uint8_t topicCount;
+    char beaconId[MAX_BEACON_ID_LENGTH];
 
     MQTTBrokerInfo() : port(1883), topicCount(0) {
         memset(address, 0, sizeof(address));
+        memset(beaconId, 0, sizeof(beaconId));
     }
 };
 

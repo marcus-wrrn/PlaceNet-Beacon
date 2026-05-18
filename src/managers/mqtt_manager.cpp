@@ -39,7 +39,7 @@ bool MQTTManager::connect(const MQTTBrokerInfo& brokerInfo,
     config.client_id   = clientId_;
     config.cert_pem    = caCertPem_.c_str();
 
-    // TODO: This is enabled to skip checking for the proper SAN name - Eventually this should be included as part of the protocol
+    // TODO: This is enabled to skip checking for the proper SAN name - Eventually this should be included as part of the protocol - remove later
     config.skip_cert_common_name_check = true;
 
     if (deviceCertPem_.length() > 0) {

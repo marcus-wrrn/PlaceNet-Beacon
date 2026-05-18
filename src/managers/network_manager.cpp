@@ -150,8 +150,8 @@ bool NetworkManager::setup() {
     // for mutual TLS and the key pair is freed immediately after the handshake.
     String deviceKeyPem(keyPair.privateKeyPem);
 
-    String brokerResponse;
-    if (!http.performHandshake(deviceAddress, resolvedHostname_, ADVERTISE_PORT, csrPem, brokerResponse)) {
+    String handshakeResponse;
+    if (!http.performHandshake(deviceAddress, resolvedHostname_, ADVERTISE_PORT, csrPem, handshakeResponse)) {
         LOGE(TAG, "PlaceNet registration handshake failed");
         placenet_keyfree(&keyPair);
         return false;
@@ -161,7 +161,7 @@ bool NetworkManager::setup() {
     MQTTBrokerInfo brokerInfo;
     String certPem;
     String caCertPem;
-    if (http.parseMQTTBrokerResponse(brokerResponse, &brokerInfo, certPem, caCertPem)) {
+    if (http.parseHandshakeResponse(handshakeResponse, &brokerInfo, certPem, caCertPem)) {
 // #ifdef HAS_SDCARD
 //         if (sd_ && sd_->isInitialized()) {
 //             if (!sd_->saveMQTTBroker(&brokerInfo)) {
