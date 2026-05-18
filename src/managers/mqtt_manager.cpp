@@ -110,14 +110,14 @@ void MQTTManager::onEvent(esp_mqtt_event_handle_t event) {
 }
 
 void MQTTManager::subscribeTopics() {
-    for (uint8_t i = 0; i < brokerInfo_.topicCount; i++) {
-        const char* topic = brokerInfo_.topics[i].topic;
-        uint8_t     qos   = brokerInfo_.topics[i].qos;
-        int msgId = esp_mqtt_client_subscribe(client_, topic, qos);
+    const MQTTTopic* subs[] = { &brokerInfo_.broadcast, &brokerInfo_.receive };
+    for (const MQTTTopic* t : subs) {
+        if (t->topic[0] == '\0') continue;
+        int msgId = esp_mqtt_client_subscribe(client_, t->topic, t->qos);
         if (msgId >= 0) {
-            LOGI(TAG, "Subscribed to '%s' (QoS %u, msg_id=%d)", topic, qos, msgId);
+            LOGI(TAG, "Subscribed to '%s' (QoS %u, msg_id=%d)", t->topic, t->qos, msgId);
         } else {
-            LOGW(TAG, "Failed to subscribe to '%s'", topic);
+            LOGW(TAG, "Failed to subscribe to '%s'", t->topic);
         }
     }
 }

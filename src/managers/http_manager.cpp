@@ -131,35 +131,24 @@ bool HTTPManager::parseHandshakeResponse(const String& body, MQTTBrokerInfo* out
         return false;
     }
 
-    *out = MQTTBrokerInfo();
-    strncpy(out->address, address, MAX_MQTT_BROKER_LENGTH - 1);
-    out->port = brokerage["port"] | 1883;
-
-    JsonArray topics = brokerage["topics"];
-    if (topics) {
-        for (JsonObject t : topics) {
-            if (out->topicCount >= MAX_MQTT_TOPICS) break;
-            const char* topic = t["topic"];
-            if (topic) {
-                strncpy(out->topics[out->topicCount].topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
-            }
-            out->topics[out->topicCount].qos = t["qos"] | 0;
-            out->topicCount++;
-        }
-    }
-
     const char* beaconId = doc["beacon_id"];
-    if (beaconId) {
-        strncpy(out->beaconId, beaconId, sizeof(out->beaconId) - 1);
+    if (!beaconId || beaconId[0] == '\0') {
+        LOGE(TAG, "Handshake response missing 'beacon_id'");
+        return false;
     }
 
-    const char* broadcastTopic = doc["broadcast_topic"];
-    if (broadcastTopic && out->topicCount < MAX_MQTT_TOPICS) {
-        strncpy(out->topics[out->topicCount].topic, broadcastTopic, MAX_MQTT_TOPIC_LENGTH - 1);
-        out->topics[out->topicCount].qos = 1;
-        out->topicCount++;
-    }
+    *out = MQTTBrokerInfo();
+    strncpy(out->address,  address,  MAX_MQTT_BROKER_LENGTH - 1);
+    out->port = brokerage["port"] | 1883;
+    strncpy(out->beaconId, beaconId, MAX_BEACON_ID_LENGTH - 1);
 
-    LOGI(TAG, "Parsed MQTT broker: %s:%u (%u topics), beacon_id: %s", out->address, out->port, out->topicCount, out->beaconId);
+    snprintf(out->broadcast.topic, MAX_MQTT_TOPIC_LENGTH, "%s/cast", out->beaconId);
+    out->broadcast.qos = 1;
+
+    snprintf(out->receive.topic, MAX_MQTT_TOPIC_LENGTH, "%s/rec", out->beaconId);
+    out->receive.qos = 1;
+
+    LOGI(TAG, "Parsed MQTT broker: %s:%u, beacon_id: %s (cast: %s, rec: %s)",
+         out->address, out->port, out->beaconId, out->broadcast.topic, out->receive.topic);
     return true;
 }

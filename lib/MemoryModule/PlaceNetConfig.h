@@ -30,11 +30,11 @@ struct MQTTTopic {
 struct MQTTBrokerInfo {
     char address[MAX_MQTT_BROKER_LENGTH];
     uint16_t port;
-    MQTTTopic topics[MAX_MQTT_TOPICS];
-    uint8_t topicCount;
     char beaconId[MAX_BEACON_ID_LENGTH];
+    MQTTTopic broadcast;  // "<beaconId>/cast" — outbound announcements
+    MQTTTopic receive;    // "<beaconId>/rec"  — inbound commands
 
-    MQTTBrokerInfo() : port(1883), topicCount(0) {
+    MQTTBrokerInfo() : port(1883) {
         memset(address, 0, sizeof(address));
         memset(beaconId, 0, sizeof(beaconId));
     }
