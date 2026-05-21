@@ -1,6 +1,8 @@
 #include "mqtt_manager.h"
 #include "logger.h"
 #include <ArduinoJson.h>
+#include "../tasks/lora_task.h"
+#include "LoRaModule.h"
 
 static const char* TAG = "MQTT-MANAGER";
 
@@ -25,6 +27,8 @@ bool MQTTManager::connect(const MQTTBrokerInfo& brokerInfo,
     strncpy(clientId_,      clientId,      sizeof(clientId_) - 1);
     strncpy(deviceAddress_, deviceAddress, sizeof(deviceAddress_) - 1);
     strncpy(mdnsHostname_,  mdnsHostname,  sizeof(mdnsHostname_) - 1);
+    strncpy(broadcastTopic, brokerInfo_.broadcast.topic, sizeof(broadcastTopic) - 1);
+    strncpy(commandTopic,   brokerInfo_.receive.topic,   sizeof(commandTopic) - 1);
     mdnsPort_ = mdnsPort;
 
     caCertPem_     = caCertPem;
@@ -85,15 +89,28 @@ void MQTTManager::onEvent(esp_mqtt_event_handle_t event) {
             break;
 
         case MQTT_EVENT_DISCONNECTED:
-            LOGW(TAG, "MQTT disconnected — client will retry automatically");
+            LOGW(TAG, "MQTT disconnected - client will retry automatically");
             connected_ = false;
             break;
 
-        case MQTT_EVENT_DATA:
-            LOGI("MQTT-CB", "[%.*s] %.*s",
-                 event->topic_len, event->topic,
-                 event->data_len, event->data);
+        case MQTT_EVENT_DATA: {
+            // esp_mqtt does not null-terminate topic or data
+            char topic[MAX_MQTT_TOPIC_LENGTH] = {};
+            char data[512] = {};
+            int tlen = std::min(event->topic_len, (int)sizeof(topic) - 1);
+            int dlen = std::min(event->data_len,  (int)sizeof(data)  - 1);
+            memcpy(topic, event->topic, tlen);
+            memcpy(data,  event->data,  dlen);
+
+            LOGI("MQTT-CB", "[%s] %s", topic, data);
+
+            if (strcmp(topic, commandTopic) == 0) {
+                handleCommand(data);
+            } else if (strcmp(topic, broadcastTopic) == 0) {
+                handleBroadcast(data);
+            }
             break;
+        }
 
         case MQTT_EVENT_ERROR:
             LOGE(TAG, "MQTT error type=%d", event->error_handle->error_type);
@@ -106,6 +123,63 @@ void MQTTManager::onEvent(esp_mqtt_event_handle_t event) {
 
         default:
             break;
+    }
+}
+
+void MQTTManager::handleCommand(const char* payload) {
+    JsonDocument doc;
+    if (deserializeJson(doc, payload) != DeserializationError::Ok) {
+        LOGW(TAG, "handleCommand: JSON parse failed");
+        return;
+    }
+
+    CommandPayload cmd = {};
+    strncpy(cmd.command, doc["command"] | "", sizeof(cmd.command) - 1);
+    strncpy(cmd.params,  doc["params"]  | "", sizeof(cmd.params)  - 1);
+    cmd.ok = cmd.command[0] != '\0';
+
+    if (!cmd.ok) {
+        LOGW(TAG, "handleCommand: missing 'command' field");
+        return;
+    }
+
+    LOGI(TAG, "Command received: %s params=%s", cmd.command, cmd.params);
+}
+
+void MQTTManager::handleBroadcast(const char* payload) {
+    JsonDocument doc;
+    if (deserializeJson(doc, payload) != DeserializationError::Ok) {
+        LOGW(TAG, "handleBroadcast: JSON parse failed");
+        return;
+    }
+
+    BroadcastPayload bcast = {};
+    strncpy(bcast.beaconId, doc["beaconId"] | "", sizeof(bcast.beaconId) - 1);
+    strncpy(bcast.address,  doc["address"]  | "", sizeof(bcast.address)  - 1);
+    bcast.ok = bcast.beaconId[0] != '\0';
+
+    if (!bcast.ok) {
+        LOGW(TAG, "handleBroadcast: missing 'beaconId' field");
+        return;
+    }
+
+    LOGI(TAG, "Broadcast received from %s at %s", bcast.beaconId, bcast.address);
+
+    if (!loraUpdateQueue) {
+        LOGW(TAG, "handleBroadcast: loraUpdateQueue not ready, dropping LoRa relay");
+        return;
+    }
+
+    LoRaPacket pkt = {};
+    uint8_t len = static_cast<uint8_t>(
+        std::min(strlen(payload), (size_t)(LORA_MAX_PACKET_SIZE - 1)));
+    memcpy(pkt.data, payload, len);
+    pkt.length = len;
+
+    if (xQueueSend(loraUpdateQueue, &pkt, 0) != pdPASS) {
+        LOGW(TAG, "handleBroadcast: loraUpdateQueue full, LoRa relay dropped");
+    } else {
+        LOGI(TAG, "Broadcast relayed to LoRa (%u bytes)", len);
     }
 }
 

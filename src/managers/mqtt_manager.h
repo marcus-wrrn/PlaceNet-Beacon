@@ -5,6 +5,18 @@
 #include "mqtt_client.h"
 #include "PlaceNetConfig.h"
 
+struct BroadcastPayload {
+    char beaconId[MAX_BEACON_ID_LENGTH];
+    char address[64];
+    bool ok;
+};
+
+struct CommandPayload {
+    char command[32];
+    char params[128];
+    bool ok;
+};
+
 class MQTTManager {
 public:
     MQTTManager();
@@ -35,6 +47,8 @@ private:
     void onEvent(esp_mqtt_event_handle_t event);
     void subscribeTopics();
     void publishRegistration();
+    void handleCommand(const char* payload);
+    void handleBroadcast(const char* payload);
 
     esp_mqtt_client_handle_t client_ = nullptr;
     std::atomic<bool>        connected_{false};
@@ -44,9 +58,11 @@ private:
     char     clientId_[MAX_MQTT_CLIENT_ID_LENGTH] = {};
     char     deviceAddress_[64]                   = {};
     char     mdnsHostname_[32]                    = {};
+    char     broadcastTopic[MAX_MQTT_TOPIC_LENGTH]= {}; // Topic for broadcasting to Hamlet
+    char     commandTopic[MAX_MQTT_TOPIC_LENGTH]  = {}; // Topic for receiving commands from the Hamlet
     uint16_t mdnsPort_                            = 0;
 
-    // PEM strings must outlive the client — stored as members so pointers
+    // PEM strings must outlive the client - stored as members so pointers
     // passed to esp_mqtt_client_init remain valid.
     String caCertPem_;
     String deviceCertPem_;
