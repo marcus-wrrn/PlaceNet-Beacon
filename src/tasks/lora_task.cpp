@@ -39,7 +39,7 @@ bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth) {
         "LoRa",
         stackDepth,
         &loraParams,
-        8,
+        9,
         nullptr,
         1
     );

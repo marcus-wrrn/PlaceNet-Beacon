@@ -10,8 +10,8 @@ void BeaconServerCallbacks::onConnect(NimBLEServer* pServer, NimBLEConnInfo& con
 }
 
 void BeaconServerCallbacks::onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) {
-    LOGI(TAG, "Client disconnected (reason: %d), restarting advertising", reason);
-    NimBLEDevice::startAdvertising();
+    // NimBLE 2.x: advertising restart is handled by server_->advertiseOnDisconnect(true) in BLEModule::init().
+    LOGI(TAG, "Client disconnected (reason: %d)", reason);
 }
 
 void WiFiCharacteristicCallbacks::onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) {

@@ -131,7 +131,7 @@ bool LoRaModule::receive(LoRaPacket* packet, uint32_t timeoutMs) {
         return false;
     }
 
-    int state = radio_->receive(packet->data, LORA_MAX_PACKET_SIZE, timeoutMs * 1000);
+    int state = radio_->receive(packet->data, LORA_MAX_PACKET_SIZE, timeoutMs);
 
     if (state == RADIOLIB_ERR_NONE) {
         packet->length = radio_->getPacketLength();

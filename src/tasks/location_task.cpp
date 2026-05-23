@@ -31,7 +31,7 @@ bool setupLocationTask(GPSModule* gps, uint32_t stackDepth) {
         "Location",
         stackDepth,
         &locationParams,
-        9,
+        8,
         nullptr,
         1
     );

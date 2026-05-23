@@ -44,13 +44,15 @@ bool BLEModule::init() {
         return false;
     }
     server_->setCallbacks(&serverCallbacks_, false);
+    // NimBLE 2.x: advertising no longer auto-restarts on disconnect; opt back in here.
+    server_->advertiseOnDisconnect(true);
 
     if (!createWiFiService()) {
         LOGE(TAG, "Failed to create WiFi provisioning service");
         return false;
     }
 
-    wifiService_->start();
+    server_->start();
 
     NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
     advertising->setName(BLE_DEVICE_NAME);
