@@ -163,23 +163,25 @@ void MQTTManager::handleBroadcast(const char* payload) {
         return;
     }
 
-    LOGI(TAG, "Broadcast received from %s at %s", bcast.beaconId, bcast.address);
+    LOGI(TAG, "Broadcast received from %s at %s — relaying over LoRa", bcast.beaconId, bcast.address);
 
-    if (!loraUpdateQueue) {
-        LOGW(TAG, "handleBroadcast: loraUpdateQueue not ready, dropping LoRa relay");
+    if (!loraTxQueue) {
+        LOGW(TAG, "handleBroadcast: loraTxQueue not ready, dropping LoRa relay");
         return;
     }
 
+    // TODO: transmit only the fields needed by the LoRa protocol rather than
+    //       the full JSON payload (e.g. address only, or a compact binary frame).
     LoRaPacket pkt = {};
     uint8_t len = static_cast<uint8_t>(
         std::min(strlen(payload), (size_t)(LORA_MAX_PACKET_SIZE - 1)));
     memcpy(pkt.data, payload, len);
     pkt.length = len;
 
-    if (xQueueSend(loraUpdateQueue, &pkt, 0) != pdPASS) {
-        LOGW(TAG, "handleBroadcast: loraUpdateQueue full, LoRa relay dropped");
+    if (xQueueSend(loraTxQueue, &pkt, 0) != pdPASS) {
+        LOGW(TAG, "handleBroadcast: loraTxQueue full, LoRa relay dropped");
     } else {
-        LOGI(TAG, "Broadcast relayed to LoRa (%u bytes)", len);
+        LOGI(TAG, "Broadcast queued for LoRa TX (%u bytes)", len);
     }
 }
 

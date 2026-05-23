@@ -223,15 +223,17 @@ bool SDCardModule::saveMQTTBroker(const MQTTBrokerInfo* broker) {
     }
 
     JsonDocument doc;
-    doc["address"] = broker->address;
-    doc["port"]    = broker->port;
+    doc["address"]  = broker->address;
+    doc["port"]     = broker->port;
+    doc["beaconId"] = broker->beaconId;
 
-    JsonArray topicsArray = doc["topics"].to<JsonArray>();
-    for (uint8_t i = 0; i < broker->topicCount && i < MAX_MQTT_TOPICS; i++) {
-        JsonObject t = topicsArray.add<JsonObject>();
-        t["topic"] = broker->topics[i].topic;
-        t["qos"]   = broker->topics[i].qos;
-    }
+    JsonObject broadcastObj = doc["broadcast"].to<JsonObject>();
+    broadcastObj["topic"] = broker->broadcast.topic;
+    broadcastObj["qos"]   = broker->broadcast.qos;
+
+    JsonObject receiveObj = doc["receive"].to<JsonObject>();
+    receiveObj["topic"] = broker->receive.topic;
+    receiveObj["qos"]   = broker->receive.qos;
 
     char buffer[2048];
     size_t written = serializeJsonPretty(doc, buffer, sizeof(buffer));
@@ -283,20 +285,30 @@ bool SDCardModule::loadMQTTBroker(MQTTBrokerInfo* broker) {
     }
     broker->port = doc["port"] | 1883;
 
-    JsonArray topicsArray = doc["topics"];
-    if (topicsArray) {
-        for (JsonObject t : topicsArray) {
-            if (broker->topicCount >= MAX_MQTT_TOPICS) break;
-            const char* topic = t["topic"];
-            if (topic) {
-                strncpy(broker->topics[broker->topicCount].topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
-            }
-            broker->topics[broker->topicCount].qos = t["qos"] | 0;
-            broker->topicCount++;
-        }
+    const char* beaconId = doc["beaconId"];
+    if (beaconId) {
+        strncpy(broker->beaconId, beaconId, MAX_BEACON_ID_LENGTH - 1);
     }
 
-    LOGI(TAG, "MQTT broker loaded: %s:%u (%u topics)", broker->address, broker->port, broker->topicCount);
+    JsonObject broadcastObj = doc["broadcast"];
+    if (broadcastObj) {
+        const char* topic = broadcastObj["topic"];
+        if (topic) {
+            strncpy(broker->broadcast.topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
+        }
+        broker->broadcast.qos = broadcastObj["qos"] | 0;
+    }
+
+    JsonObject receiveObj = doc["receive"];
+    if (receiveObj) {
+        const char* topic = receiveObj["topic"];
+        if (topic) {
+            strncpy(broker->receive.topic, topic, MAX_MQTT_TOPIC_LENGTH - 1);
+        }
+        broker->receive.qos = receiveObj["qos"] | 0;
+    }
+
+    LOGI(TAG, "MQTT broker loaded: %s:%u (beaconId: %s)", broker->address, broker->port, broker->beaconId);
     return true;
 }
 

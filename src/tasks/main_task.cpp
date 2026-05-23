@@ -104,7 +104,7 @@ static void runOperationalLoop(SupervisorContext* ctx) {
         }
 #endif
 
-        while (loraUpdateQueue && xQueueReceive(loraUpdateQueue, &pkt, 0) == pdPASS) {
+        while (loraRxQueue && xQueueReceive(loraRxQueue, &pkt, 0) == pdPASS) {
             pktCount++;
             bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
 

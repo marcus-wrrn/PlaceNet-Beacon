@@ -126,10 +126,6 @@
 #define LORA_TX_QUEUE_LEN 10
 #define LORA_RX_QUEUE_LEN 10
 
-// LoRa Operation Mode (choose one)
-#define LORA_MODE_RECEIVER     // Listen for packets and display them
-//#define LORA_MODE_BEACON    // Transmit beacon URL periodically
-
 //=====================================================
 // T-Deck Configuration
 //=====================================================
@@ -223,9 +219,5 @@
 
 #define LORA_TX_QUEUE_LEN           10
 #define LORA_RX_QUEUE_LEN           10
-
-// LoRa Operation Mode (choose one)
-#define LORA_MODE_RECEIVER     // Listen for packets and display them
-// #define LORA_MODE_BEACON    // Transmit beacon URL periodically
 
 #endif

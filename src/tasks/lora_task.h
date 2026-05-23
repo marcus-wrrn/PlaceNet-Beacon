@@ -12,15 +12,17 @@ struct LoRaTaskParams {
     LoRaModule* lora;
 };
 
-extern QueueHandle_t loraUpdateQueue;
+extern QueueHandle_t loraRxQueue;   // lora_task  → main_task  (received packets + TX echoes)
+extern QueueHandle_t loraTxQueue;   // mqtt_manager → lora_task (packets to transmit)
 
 /**
  * @brief LoRa task function - handles TX/RX radio operations
  *
  * This task:
- * - Waits for packets on TX queue and transmits them
- * - Listens for incoming packets and places them on RX queue
- * - Manages radio state (TX/RX switching)
+ * - Always stays in continuous RX mode (listening)
+ * - When a packet arrives on loraTxQueue, switches to TX, transmits,
+ *   then immediately returns to RX mode
+ * - Pushes received packets (and TX echoes) onto loraRxQueue for main_task
  *
  * @param pvParameters Pointer to LoRaTaskParams struct
  */
