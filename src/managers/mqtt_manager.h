@@ -39,6 +39,7 @@ public:
     void loop();
 
     bool publish(const char* topic, const char* payload, bool retained = false);
+    bool publishAlive();
     bool isConnected();
 
 private:

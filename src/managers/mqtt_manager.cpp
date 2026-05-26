@@ -218,6 +218,29 @@ void MQTTManager::publishRegistration() {
 
 void MQTTManager::loop() {}
 
+bool MQTTManager::publishAlive() {
+    if (!connected_) {
+        LOGW(TAG, "publishAlive dropped — not connected");
+        return false;
+    }
+
+    JsonDocument doc;
+    doc["type"]     = "alive";
+    doc["beaconId"] = clientId_;
+
+    char payload[128] = {};
+    serializeJson(doc, payload, sizeof(payload));
+
+    int msgId = esp_mqtt_client_publish(client_, commandTopic, payload, 0, 1, 0);
+    if (msgId >= 0) {
+        LOGI(TAG, "Alive published to '%s': %s", commandTopic, payload);
+        return true;
+    } else {
+        LOGW(TAG, "Failed to publish alive message to '%s'", commandTopic);
+        return false;
+    }
+}
+
 bool MQTTManager::publish(const char* topic, const char* payload, bool retained) {
     if (!connected_) {
         LOGW(TAG, "publish('%s') dropped — not connected", topic);

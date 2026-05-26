@@ -74,6 +74,8 @@ static void runOperationalLoop(SupervisorContext* ctx) {
     currentState.beaconState   = STATE_OPERATIONAL;
     TickType_t lastDisplayUpdate = 0;
     const TickType_t displayUpdateInterval = pdMS_TO_TICKS(5000);
+    TickType_t lastAliveTime = 0;
+    const TickType_t aliveInterval = pdMS_TO_TICKS(60000);
 
 #ifdef HAS_PMU
     PMUManager pmuManager;
@@ -124,6 +126,14 @@ static void runOperationalLoop(SupervisorContext* ctx) {
         }
 
         TickType_t now = xTaskGetTickCount();
+
+        if (now - lastAliveTime >= aliveInterval) {
+            if (ctx->mqtt) {
+                ctx->mqtt->publishAlive();
+            }
+            lastAliveTime = now;
+        }
+
         if (now - lastDisplayUpdate >= displayUpdateInterval) {
             if (currentState != lastDisplayed) {
 #ifdef DISPLAY_MODEL
