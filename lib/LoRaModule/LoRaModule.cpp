@@ -3,10 +3,20 @@
 
 static const char* TAG = "LORA_MODULE";
 
+// Static singleton pointer for the ISR callback.
+LoRaModule* LoRaModule::instance_ = nullptr;
+
+void IRAM_ATTR LoRaModule::onDio1Interrupt() {
+    if (instance_) {
+        instance_->rxFlag_ = true;
+    }
+}
+
 LoRaModule::LoRaModule()
     : radio_(nullptr),
       mode_(LORA_MODE_IDLE),
       initialized_(false),
+      rxFlag_(false),
       frequency_(CONFIG_RADIO_FREQ),
       bandwidth_(CONFIG_RADIO_BW),
       spreadingFactor_(10),
@@ -52,6 +62,13 @@ bool LoRaModule::init() {
         radio_ = nullptr;
         return false;
     }
+
+    // Register the DIO1 interrupt so the radio signals us when a full
+    // packet has been received.  The ISR simply sets rxFlag_; the task
+    // drains it via readPacket().
+    instance_ = this;
+    rxFlag_   = false;
+    radio_->setDio1Action(onDio1Interrupt);
 
     LOGI(TAG, "LoRa radio initialized successfully");
     initialized_ = true;
@@ -113,6 +130,12 @@ bool LoRaModule::startListening() {
         return false;
     }
 
+    // Clear any stale DIO1 flag before arming the receiver.
+    // DIO1 is shared between TX-done and RX-done events; a TX that just
+    // finished will have set rxFlag_ — if we don't clear it here we will
+    // immediately try to read a packet from an empty FIFO.
+    rxFlag_ = false;
+
     LOGI(TAG, "Starting continuous receive mode...");
     int state = radio_->startReceive();
 
@@ -126,32 +149,42 @@ bool LoRaModule::startListening() {
     return false;
 }
 
-bool LoRaModule::receive(LoRaPacket* packet, uint32_t timeoutMs) {
+bool LoRaModule::readPacket(LoRaPacket* packet) {
     if (!initialized_ || !radio_ || !packet) {
         return false;
     }
 
-    int state = radio_->receive(packet->data, LORA_MAX_PACKET_SIZE, timeoutMs);
+    if (!rxFlag_) {
+        return false;
+    }
+    rxFlag_ = false;
+
+    size_t len = radio_->getPacketLength();
+
+    int state = radio_->readData(packet->data, len);
+
+    if (radio_->startReceive() != RADIOLIB_ERR_NONE) {
+        LOGW(TAG, "readPacket: failed to re-arm startReceive");
+    } else {
+        mode_ = LORA_MODE_RX;
+    }
 
     if (state == RADIOLIB_ERR_NONE) {
-        packet->length = radio_->getPacketLength();
-        packet->rssi = radio_->getRSSI();
-        packet->snr = radio_->getSNR();
+        packet->length = (uint8_t)len;
+        packet->rssi   = radio_->getRSSI();
+        packet->snr    = radio_->getSNR();
 
         LOGI(TAG, "Packet received: %d bytes, RSSI: %d dBm, SNR: %.2f dB",
              packet->length, packet->rssi, packet->snr);
-
-        mode_ = LORA_MODE_RX;
         return true;
-    } else if (state == RADIOLIB_ERR_RX_TIMEOUT) {
-        return false;
-    } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
-        LOGD(TAG, "CRC mismatch, ignoring packet");
-        return false;
-    } else {
-        LOGW(TAG, "Receive error, code: %d", state);
-        return false;
     }
+
+    if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+        LOGD(TAG, "CRC mismatch, ignoring packet");
+    } else {
+        LOGW(TAG, "readData error, code: %d", state);
+    }
+    return false;
 }
 
 void LoRaModule::recordTransmission(uint32_t timeOnAir) {

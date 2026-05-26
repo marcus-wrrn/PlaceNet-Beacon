@@ -181,7 +181,7 @@ bool NetworkManager::setup() {
 // #endif
 
         mqttManager_ = new MQTTManager();
-        if (!mqttManager_->connect(brokerInfo, resolvedHostname_,
+        if (!mqttManager_->connect(brokerInfo, brokerInfo.beaconId,
                                    deviceAddress, resolvedHostname_, ADVERTISE_PORT,
                                    caCertPem.c_str(), certPem.c_str(), deviceKeyPem.c_str())) {
             LOGW(TAG, "Initial MQTTS connection failed — will retry in background");

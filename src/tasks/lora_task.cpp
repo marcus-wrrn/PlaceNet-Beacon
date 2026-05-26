@@ -81,14 +81,15 @@ void loraTask(void* pvParameters) {
         return;
     }
 
-    LOGI(TAG, "LoRa task running - listening for packets, TX driven by loraTxQueue");
+    LOGI(TAG, "LoRa task running - interrupt-driven RX, TX driven by loraTxQueue");
 
     LoRaPacket pkt;
     uint32_t rxCount = 0;
     uint32_t txCount = 0;
 
+
     while (true) {
-        // --- TX: check for outbound packet (non-blocking) ---
+        // ── TX: drain one outgoing packet if queued ───────────────────────
         if (xQueueReceive(loraTxQueue, &pkt, 0) == pdPASS) {
             txCount++;
             LOGI(TAG, "TX #%lu: transmitting %d bytes", txCount, pkt.length);
@@ -98,7 +99,7 @@ void loraTask(void* pvParameters) {
                 LOGI(TAG, "TX #%lu: transmitted successfully", txCount);
 
                 // Echo to loraRxQueue so main_task can update the display.
-                // Convention: rssi=0, snr=0 indicates a locally-sent packet.
+                // Convention: rssi=0, snr=0 flags a locally-sent packet.
                 LoRaPacket echo = pkt;
                 echo.rssi = 0;
                 echo.snr  = 0.0f;
@@ -109,14 +110,13 @@ void loraTask(void* pvParameters) {
                 LOGW(TAG, "TX #%lu: transmission failed", txCount);
             }
 
-            // Return to RX mode after every transmission
             if (!lora->startListening()) {
                 LOGE(TAG, "Failed to re-enter listening mode after TX");
             }
         }
 
-        // --- RX: poll for incoming packet (50 ms timeout keeps TX queue responsive) ---
-        if (lora->receive(&pkt, 50)) {
+        // ── RX: non-blocking read driven by DIO1 interrupt flag ───────────
+        if (lora->readPacket(&pkt)) {
             rxCount++;
             LOGI(TAG, "=== RX Packet #%lu ===", rxCount);
             LOGI(TAG, "Length: %d bytes", pkt.length);
@@ -129,5 +129,7 @@ void loraTask(void* pvParameters) {
                 LOGE(TAG, "RX #%lu: failed to queue packet to loraRxQueue", rxCount);
             }
         }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

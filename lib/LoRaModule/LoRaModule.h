@@ -46,12 +46,16 @@ public:
     bool startListening();
 
     /**
-     * @brief Check for and retrieve received packet (blocking with timeout)
-     * @param packet Pointer to LoRaPacket struct to fill with received data
-     * @param timeoutMs Timeout in milliseconds (default: 100ms)
-     * @return true if packet was received
+     * @brief Non-blocking packet read driven by DIO1 interrupt flag.
+     *        Call after startListening(); returns true if a complete packet
+     *        was waiting.  Re-arms continuous receive automatically.
+     * @param packet Pointer to LoRaPacket struct to fill
+     * @return true if a packet was ready and read successfully
      */
-    bool receive(LoRaPacket* packet, uint32_t timeoutMs = 100);
+    bool readPacket(LoRaPacket* packet);
+
+    /** @brief Returns true if the DIO1 ISR has flagged a received packet. */
+    bool hasPacket() const { return rxFlag_; }
 
     /**
      * @brief Set radio mode
@@ -70,6 +74,17 @@ public:
     float getDutyCycle(uint32_t windowMs = 3600000);
 
 private:
+    // ── Interrupt-driven receive ──────────────────────────────────────────────
+    /** Set by DIO1 ISR when a full packet has been received. */
+    volatile bool rxFlag_;
+
+    /** Singleton pointer used by the static ISR callback. */
+    static LoRaModule* instance_;
+
+    /** DIO1 ISR — must be in IRAM and have no-argument signature. */
+    static void IRAM_ATTR onDio1Interrupt();
+    // ─────────────────────────────────────────────────────────────────────────
+
     struct TransmissionRecord {
         uint32_t timestamp;
         uint32_t timeOnAir;
