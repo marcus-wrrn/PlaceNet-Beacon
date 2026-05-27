@@ -42,29 +42,25 @@ struct SupervisorContext {
 
 struct DisplayState {
     uint16_t batteryVoltage;
-    double latitude;
-    double longitude;
-    uint8_t satelliteCount;
-    float altitude;
-    int packetCount;
-    int16_t lastRssi;
-    float lastSnr;
-    bool lastPacketWasSent;
-    uint8_t receivedData[LORA_MAX_PACKET_SIZE + 1];
+    int      sentCount;
+    int      receivedCount;
+    int16_t  lastRssi;
+    float    lastSnr;
+    char     lastUrl[128];
+    uint8_t  lastKid[4];
+    uint8_t  lastTok[4];
     BeaconState beaconState;
 
     bool operator!=(const DisplayState& other) const {
-        return batteryVoltage != other.batteryVoltage ||
-               latitude != other.latitude ||
-               longitude != other.longitude ||
-               satelliteCount != other.satelliteCount ||
-               altitude != other.altitude ||
-               packetCount != other.packetCount ||
-               lastRssi != other.lastRssi ||
-               lastSnr != other.lastSnr ||
-               lastPacketWasSent != other.lastPacketWasSent ||
-               beaconState != other.beaconState ||
-               strcmp((const char*)receivedData, (const char*)other.receivedData) != 0;
+        return batteryVoltage  != other.batteryVoltage  ||
+               sentCount       != other.sentCount       ||
+               receivedCount   != other.receivedCount   ||
+               lastRssi        != other.lastRssi        ||
+               lastSnr         != other.lastSnr         ||
+               beaconState     != other.beaconState     ||
+               memcmp(lastKid, other.lastKid, 4) != 0  ||
+               memcmp(lastTok, other.lastTok, 4) != 0  ||
+               strcmp(lastUrl, other.lastUrl) != 0;
     }
 };
 

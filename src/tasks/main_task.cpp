@@ -97,31 +97,32 @@ static void runOperationalLoop(SupervisorContext* ctx) {
 #endif
 
 #ifdef HAS_GPS
-        if (gpsManager.updateGPS()) {
-            const GPSData& gpsData = gpsManager.getData();
-            currentState.latitude      = gpsData.position.latitude;
-            currentState.longitude     = gpsData.position.longitude;
-            currentState.satelliteCount = gpsData.metadata.satelliteCount;
-            currentState.altitude      = gpsData.metadata.altitude;
-        }
+        gpsManager.updateGPS();  // keep module ticking; GPS no longer shown on display
 #endif
 
         while (loraRxQueue && xQueueReceive(loraRxQueue, &pkt, 0) == pdPASS) {
             pktCount++;
             bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
 
-            currentState.packetCount     = pktCount;
-            currentState.lastRssi        = pkt.rssi;
-            currentState.lastSnr         = pkt.snr;
-            currentState.lastPacketWasSent = isSentPacket;
-            memcpy(currentState.receivedData, pkt.data, pkt.length);
-            currentState.receivedData[pkt.length] = '\0';
-
             if (isSentPacket) {
-                LOGI(TAG, "Packet #%d sent\n%.*s", pktCount, pkt.length, (const char*)pkt.data);
+                currentState.sentCount++;
+                LOGI(TAG, "Packet #%d sent (%u bytes) url=%s kid=%02x%02x%02x%02x tok=%02x%02x%02x%02x",
+                     pktCount, pkt.length,
+                     pkt.url[0] ? pkt.url : "(raw)",
+                     pkt.kid[0], pkt.kid[1], pkt.kid[2], pkt.kid[3],
+                     pkt.tok[0], pkt.tok[1], pkt.tok[2], pkt.tok[3]);
             } else {
-                LOGI(TAG, "#%d Received packet: RSSI=%d dBm, SNR=%.2f dB, len=%d",
-                     pktCount, pkt.rssi, pkt.snr, pkt.length);
+                currentState.receivedCount++;
+                currentState.lastRssi = pkt.rssi;
+                currentState.lastSnr  = pkt.snr;
+                strncpy(currentState.lastUrl, pkt.url, sizeof(currentState.lastUrl) - 1);
+                memcpy(currentState.lastKid, pkt.kid, 4);
+                memcpy(currentState.lastTok, pkt.tok, 4);
+                LOGI(TAG, "#%d Received packet: RSSI=%d dBm, SNR=%.2f dB, len=%d url=%s kid=%02x%02x%02x%02x tok=%02x%02x%02x%02x",
+                     pktCount, pkt.rssi, pkt.snr, pkt.length,
+                     pkt.url[0] ? pkt.url : "(raw)",
+                     pkt.kid[0], pkt.kid[1], pkt.kid[2], pkt.kid[3],
+                     pkt.tok[0], pkt.tok[1], pkt.tok[2], pkt.tok[3]);
             }
         }
 
@@ -139,23 +140,19 @@ static void runOperationalLoop(SupervisorContext* ctx) {
 #ifdef DISPLAY_MODEL
                 display.clearBuffer();
 
-                if (currentState.packetCount > 0) {
-                    if (currentState.lastPacketWasSent) {
-                        display.drawLine("Packet #%d sent", currentState.packetCount);
-                    } else {
-                        display.drawLine("#%d, RSSI: %d, SNR: %.2f",
-                            currentState.packetCount, currentState.lastRssi, currentState.lastSnr);
-                        display.drawLine((char*)currentState.receivedData);
-                    }
-                }
-
 #ifdef HAS_PMU
-                pmuManager.logPMU(&display);
+                display.drawLine("Bat: %u mV", currentState.batteryVoltage);
 #endif
-
-#ifdef HAS_GPS
-                gpsManager.logGPS(&display);
-#endif
+                display.drawLine("Sent: #%d", currentState.sentCount);
+                display.drawLine("Received: #%d", currentState.receivedCount);
+                display.drawLine("RSSI: %d  SNR: %.1f", currentState.lastRssi, currentState.lastSnr);
+                display.drawLine("url: %s", currentState.lastUrl[0] ? currentState.lastUrl : "-");
+                display.drawLine("kid: %02x%02x%02x%02x",
+                    currentState.lastKid[0], currentState.lastKid[1],
+                    currentState.lastKid[2], currentState.lastKid[3]);
+                display.drawLine("tok: %02x%02x%02x%02x",
+                    currentState.lastTok[0], currentState.lastTok[1],
+                    currentState.lastTok[2], currentState.lastTok[3]);
 
                 display.sendBuffer();
 #endif
