@@ -11,10 +11,18 @@
 #define LORA_MAX_PACKET_SIZE 255
 
 struct LoRaPacket {
+    // Raw bytes written to / read from the radio.
     uint8_t data[LORA_MAX_PACKET_SIZE];
     uint8_t length;
+
+    // Radio metadata (populated on RX; rssi==0 && snr==0 marks a TX echo).
     int16_t rssi;
-    float snr;
+    float   snr;
+
+    // Structured broadcast fields parsed from / serialised into data[].
+    char    url[128];
+    uint8_t kid[4];
+    uint8_t tok[4];
 };
 
 enum LoRaMode {

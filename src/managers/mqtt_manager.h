@@ -6,9 +6,10 @@
 #include "PlaceNetConfig.h"
 
 struct BroadcastPayload {
-    char beaconId[MAX_BEACON_ID_LENGTH];
-    char address[64];
-    bool ok;
+    char    url[128];
+    uint8_t kid[4];
+    uint8_t tok[4];
+    bool    ok;
 };
 
 struct CommandPayload {

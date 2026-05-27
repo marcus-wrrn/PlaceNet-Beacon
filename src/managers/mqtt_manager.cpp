@@ -153,35 +153,61 @@ void MQTTManager::handleBroadcast(const char* payload) {
         return;
     }
 
+    // Parse new payload format: { "url": "...", "kid": "8ec072f9", "tok": "2e269c56" }
+    // kid and tok are 8-char hex strings representing 4 bytes each.
     BroadcastPayload bcast = {};
-    strncpy(bcast.beaconId, doc["beaconId"] | "", sizeof(bcast.beaconId) - 1);
-    strncpy(bcast.address,  doc["address"]  | "", sizeof(bcast.address)  - 1);
-    bcast.ok = bcast.beaconId[0] != '\0';
+    strncpy(bcast.url, doc["url"] | "", sizeof(bcast.url) - 1);
+
+    auto parseHexBytes = [](const char* hex, uint8_t* out, size_t outLen) {
+        for (size_t i = 0; i < outLen; i++) {
+            char buf[3] = { hex[i * 2], hex[i * 2 + 1], '\0' };
+            out[i] = static_cast<uint8_t>(strtoul(buf, nullptr, 16));
+        }
+    };
+
+    const char* kidHex = doc["kid"] | "";
+    const char* tokHex = doc["tok"] | "";
+    if (strlen(kidHex) >= 8) parseHexBytes(kidHex, bcast.kid, 4);
+    if (strlen(tokHex) >= 8) parseHexBytes(tokHex, bcast.tok, 4);
+
+    bcast.ok = bcast.url[0] != '\0';
 
     if (!bcast.ok) {
-        LOGW(TAG, "handleBroadcast: missing 'beaconId' field");
+        LOGW(TAG, "handleBroadcast: missing 'url' field");
         return;
     }
 
-    LOGI(TAG, "Broadcast received from %s at %s — relaying over LoRa", bcast.beaconId, bcast.address);
+    LOGI(TAG, "Broadcast received: url=%s kid=%02x%02x%02x%02x tok=%02x%02x%02x%02x",
+         bcast.url,
+         bcast.kid[0], bcast.kid[1], bcast.kid[2], bcast.kid[3],
+         bcast.tok[0], bcast.tok[1], bcast.tok[2], bcast.tok[3]);
 
     if (!loraTxQueue) {
         LOGW(TAG, "handleBroadcast: loraTxQueue not ready, dropping LoRa relay");
         return;
     }
 
-    // TODO: transmit only the fields needed by the LoRa protocol rather than
-    //       the full JSON payload (e.g. address only, or a compact binary frame).
+    // Build a compact binary LoRa frame:
+    //   [url_len: 1 byte][url: url_len bytes][kid: 4 bytes][tok: 4 bytes]
     LoRaPacket pkt = {};
-    uint8_t len = static_cast<uint8_t>(
-        std::min(strlen(payload), (size_t)(LORA_MAX_PACKET_SIZE - 1)));
-    memcpy(pkt.data, payload, len);
-    pkt.length = len;
+    strncpy(pkt.url, bcast.url, sizeof(pkt.url) - 1);
+    memcpy(pkt.kid, bcast.kid, 4);
+    memcpy(pkt.tok, bcast.tok, 4);
+
+    uint8_t urlLen = static_cast<uint8_t>(
+        std::min(strlen(bcast.url), (size_t)(LORA_MAX_PACKET_SIZE - 1 - 4 - 4 - 1)));
+    uint8_t frameLen = 1 + urlLen + 4 + 4;
+
+    pkt.data[0] = urlLen;
+    memcpy(&pkt.data[1],           bcast.url,  urlLen);
+    memcpy(&pkt.data[1 + urlLen],  bcast.kid,  4);
+    memcpy(&pkt.data[1 + urlLen + 4], bcast.tok, 4);
+    pkt.length = frameLen;
 
     if (xQueueSend(loraTxQueue, &pkt, 0) != pdPASS) {
         LOGW(TAG, "handleBroadcast: loraTxQueue full, LoRa relay dropped");
     } else {
-        LOGI(TAG, "Broadcast queued for LoRa TX (%u bytes)", len);
+        LOGI(TAG, "Broadcast queued for LoRa TX (%u bytes)", frameLen);
     }
 }
 
