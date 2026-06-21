@@ -186,4 +186,5 @@ void setup() {
     LOGI(TAG, "===========================================");
 }
 
-void loop() {}
+// delete arduino loop as all tasks are handled in FreeRTOS
+void loop() { vTaskDelete(NULL); }

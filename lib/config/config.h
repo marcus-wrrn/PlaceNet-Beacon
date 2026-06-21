@@ -22,6 +22,34 @@
 #define UNUSED_PIN                   (0)
 
 //=====================================================
+// MeshCore-compatible LoRa PHY profile
+//=====================================================
+// To be heard by a MeshCore network, the radio PHY parameters must match
+// that network exactly. These are the MeshCore defaults (see the vendored
+// MeshCore platformio.ini); override per build to join a specific deployment.
+//
+// NOTE: 0x12 is RADIOLIB_SX126X_SYNC_WORD_PRIVATE — the value MeshCore uses
+// to mark its private network. Preamble length follows MeshCore's rule
+// (longer preamble at low SF improves reliability).
+#ifndef MESHCORE_RADIO_FREQ
+#define MESHCORE_RADIO_FREQ          (869.618f)
+#endif
+#ifndef MESHCORE_RADIO_BW
+#define MESHCORE_RADIO_BW            (62.5f)
+#endif
+#ifndef MESHCORE_RADIO_SF
+#define MESHCORE_RADIO_SF            (8)
+#endif
+#ifndef MESHCORE_RADIO_CR
+#define MESHCORE_RADIO_CR            (5)
+#endif
+#ifndef MESHCORE_SYNC_WORD
+#define MESHCORE_SYNC_WORD           (0x12)
+#endif
+// Preamble symbols as a function of spreading factor (MeshCore rule).
+#define MESHCORE_PREAMBLE_LEN(sf)    ((sf) <= 8 ? 32 : 16)
+
+//=====================================================
 // T-Beam S3 Supreme Configuration
 //=====================================================
 #if defined(T_BEAM_S3_SUPREME_SX1262) || defined(T_BEAM_S3_SUPREME_LR1121)

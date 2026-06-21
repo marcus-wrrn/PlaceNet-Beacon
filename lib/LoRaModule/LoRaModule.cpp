@@ -17,12 +17,12 @@ LoRaModule::LoRaModule()
       mode_(LORA_MODE_IDLE),
       initialized_(false),
       rxFlag_(false),
-      frequency_(CONFIG_RADIO_FREQ),
-      bandwidth_(CONFIG_RADIO_BW),
-      spreadingFactor_(10),
-      codingRate_(7),
+      frequency_(MESHCORE_RADIO_FREQ),
+      bandwidth_(MESHCORE_RADIO_BW),
+      spreadingFactor_(MESHCORE_RADIO_SF),
+      codingRate_(MESHCORE_RADIO_CR),
       txPower_(CONFIG_RADIO_OUTPUT_POWER),
-      syncWord_(0x12),
+      syncWord_(MESHCORE_SYNC_WORD),
       txRecordIndex_(0),
       txRecordCount_(0)
 {
@@ -54,10 +54,22 @@ bool LoRaModule::init() {
         return false;
     }
 
-    int state = radio_->begin(frequency_, bandwidth_, spreadingFactor_, codingRate_, syncWord_, txPower_, 8);
+    const uint16_t preambleLen = MESHCORE_PREAMBLE_LEN(spreadingFactor_);
+    int state = radio_->begin(frequency_, bandwidth_, spreadingFactor_, codingRate_,
+                              syncWord_, txPower_, preambleLen);
 
     if (state != RADIOLIB_ERR_NONE) {
         LOGE(TAG, "Radio initialization failed, code: %d", state);
+        delete radio_;
+        radio_ = nullptr;
+        return false;
+    }
+
+    // MeshCore frames are sent with CRC enabled; receivers drop packets whose
+    // CRC mode does not match, so this is required for over-the-air parity.
+    state = radio_->setCRC(1);
+    if (state != RADIOLIB_ERR_NONE) {
+        LOGE(TAG, "Failed to enable CRC, code: %d", state);
         delete radio_;
         radio_ = nullptr;
         return false;

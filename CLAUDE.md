@@ -23,6 +23,10 @@ lib/
 ├── DisplayModule/
 │   ├── DisplayModule.cpp
 │   └── DisplayModule.h
+├── ed25519/                # Vendored orlp/ed25519 (MeshCore-compatible signing)
+│   ├── ed_25519.h
+│   ├── *.c / *.h           # fe, ge, sc, sha512, sign, verify, keypair, ...
+│   └── license.txt
 ├── GPSModule/
 │   ├── GPSModule.cpp
 │   └── GPSModule.h
@@ -37,6 +41,14 @@ lib/
 │   ├── README.md
 │   ├── SDCardModule.cpp
 │   └── SDCardModule.h
+├── MeshIdentity/           # Ed25519 identity + signed ADVERT helpers (crypto)
+│   ├── MeshIdentity.cpp
+│   └── MeshIdentity.h
+├── MeshProtocol/           # MeshCore wire framing + ADVERT codec (no crypto)
+│   ├── MeshAdvert.cpp
+│   ├── MeshAdvert.h
+│   ├── MeshPacket.cpp
+│   └── MeshPacket.h
 ├── NetworkModule/
 │   ├── NetworkModule.cpp
 │   ├── NetworkModule.h
@@ -72,6 +84,8 @@ test/
 ├── embedded/
 │   ├── test_ble_provisioning/
 │   │   └── test_ble_provisioning.cpp
+│   ├── test_mesh_protocol/
+│   │   └── test_mesh_protocol.cpp
 │   └── test_placenet_config_hw/
 │       └── test_placenet_config_hw.cpp
 ├── mock/
