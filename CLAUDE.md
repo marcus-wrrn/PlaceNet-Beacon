@@ -44,9 +44,13 @@ lib/
 ├── MeshIdentity/           # Ed25519 identity + signed ADVERT helpers (crypto)
 │   ├── MeshIdentity.cpp
 │   └── MeshIdentity.h
-├── MeshProtocol/           # MeshCore wire framing + ADVERT codec (no crypto)
+├── MeshProtocol/           # MeshCore wire framing + ADVERT/GRP_TXT codecs
 │   ├── MeshAdvert.cpp
 │   ├── MeshAdvert.h
+│   ├── MeshCrypto.cpp        # AES-128-ECB + 2-byte HMAC (encryptThenMAC/MACThenDecrypt)
+│   ├── MeshCrypto.h
+│   ├── MeshGroupChannel.cpp  # GRP_TXT (0x05) channel message encode/decode
+│   ├── MeshGroupChannel.h
 │   ├── MeshPacket.cpp
 │   └── MeshPacket.h
 ├── NetworkModule/
@@ -84,6 +88,8 @@ test/
 ├── embedded/
 │   ├── test_ble_provisioning/
 │   │   └── test_ble_provisioning.cpp
+│   ├── test_mesh_group/
+│   │   └── test_mesh_group.cpp
 │   ├── test_mesh_protocol/
 │   │   └── test_mesh_protocol.cpp
 │   └── test_placenet_config_hw/
