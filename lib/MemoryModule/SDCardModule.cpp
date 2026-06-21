@@ -460,6 +460,15 @@ bool SDCardModule::parseConfigJSON(const char* json, PlaceNetConfig* config) {
         config->beacon.bleEnabled = beaconObj["bleEnabled"] | false;
     }
 
+    JsonObject loraObj = doc["lora"];
+    if (loraObj) {
+        config->lora.frequency       = loraObj["frequency"]       | (float)MESHCORE_RADIO_FREQ;
+        config->lora.bandwidth       = loraObj["bandwidth"]       | (float)MESHCORE_RADIO_BW;
+        config->lora.spreadingFactor = loraObj["spreadingFactor"] | (uint8_t)MESHCORE_RADIO_SF;
+        config->lora.codingRate      = loraObj["codingRate"]      | (uint8_t)MESHCORE_RADIO_CR;
+        config->lora.syncWord        = loraObj["syncWord"]        | (uint8_t)MESHCORE_SYNC_WORD;
+    }
+
     return true;
 }
 
@@ -497,6 +506,13 @@ bool SDCardModule::createConfigJSON(const PlaceNetConfig* config, char* buffer, 
     beaconObj["loraEnabled"] = config->beacon.loraEnabled;
     beaconObj["gpsEnabled"] = config->beacon.gpsEnabled;
     beaconObj["bleEnabled"] = config->beacon.bleEnabled;
+
+    JsonObject loraObj = doc["lora"].to<JsonObject>();
+    loraObj["frequency"]       = config->lora.frequency;
+    loraObj["bandwidth"]       = config->lora.bandwidth;
+    loraObj["spreadingFactor"] = config->lora.spreadingFactor;
+    loraObj["codingRate"]      = config->lora.codingRate;
+    loraObj["syncWord"]        = config->lora.syncWord;
 
     size_t written = serializeJsonPretty(doc, buffer, bufferSize);
     if (written == 0 || written >= bufferSize - 1) {

@@ -1,5 +1,6 @@
 #include "BLEModule.h"
 #include "logger.h"
+#include <cstdio>
 
 static const char* TAG = "BLE";
 
@@ -13,7 +14,12 @@ BLEModule::BLEModule(bool isenabled)
     , wifiSsidChar_(nullptr)
     , wifiPasswordChar_(nullptr)
     , wifiStatusChar_(nullptr)
+    , configService_(nullptr)
+    , loraConfigChar_(nullptr)
+    , serverConfigChar_(nullptr)
     , wifiCreds_{}
+    , loraConfig_{}
+    , serverConfig_{}
     , wifiCredsCallback_(nullptr) {
     wifiCharCallbacks_.setBLEModule(this);
 }
@@ -49,6 +55,11 @@ bool BLEModule::init() {
 
     if (!createWiFiService()) {
         LOGE(TAG, "Failed to create WiFi provisioning service");
+        return false;
+    }
+
+    if (!createConfigService()) {
+        LOGE(TAG, "Failed to create radio/server config service");
         return false;
     }
 
@@ -122,6 +133,29 @@ bool BLEModule::createWiFiService() {
     return true;
 }
 
+bool BLEModule::createConfigService() {
+    configService_ = server_->createService(SERVICE_UUID_CONFIG);
+    if (!configService_) {
+        return false;
+    }
+
+    // LoRa PHY profile: read/write JSON
+    loraConfigChar_ = configService_->createCharacteristic(
+        CHAR_UUID_LORA_CONFIG,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+    );
+    loraConfigChar_->setCallbacks(&wifiCharCallbacks_);
+
+    // Home server address + port: read/write JSON
+    serverConfigChar_ = configService_->createCharacteristic(
+        CHAR_UUID_SERVER_CONFIG,
+        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE
+    );
+    serverConfigChar_->setCallbacks(&wifiCharCallbacks_);
+
+    return true;
+}
+
 void BLEModule::stop() {
     if (!initialized_) {
         return;
@@ -141,6 +175,9 @@ void BLEModule::stop() {
     wifiSsidChar_ = nullptr;
     wifiPasswordChar_ = nullptr;
     wifiStatusChar_ = nullptr;
+    configService_ = nullptr;
+    loraConfigChar_ = nullptr;
+    serverConfigChar_ = nullptr;
     LOGI(TAG, "BLE stopped and deinitialized");
 }
 
@@ -166,4 +203,49 @@ void BLEModule::setWiFiStatus(const char* status) {
     if (!initialized_ || !wifiStatusChar_) return;
     wifiStatusChar_->setValue(status);
     wifiStatusChar_->notify();
+}
+
+void BLEModule::setLoRaConfigCallback(std::function<void(const BLELoRaConfig&)> cb) {
+    loraConfigCallback_ = cb;
+}
+
+void BLEModule::setServerConfigCallback(std::function<void(const BLEServerConfig&)> cb) {
+    serverConfigCallback_ = cb;
+}
+
+void BLEModule::setCurrentLoRaConfig(float frequency, float bandwidth, uint8_t spreadingFactor,
+                                     uint8_t codingRate, uint8_t syncWord) {
+    loraConfig_.frequency       = frequency;
+    loraConfig_.bandwidth       = bandwidth;
+    loraConfig_.spreadingFactor = spreadingFactor;
+    loraConfig_.codingRate      = codingRate;
+    loraConfig_.syncWord        = syncWord;
+    loraConfig_.pending         = false;
+
+    if (loraConfigChar_) {
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+                 "{\"frequency\":%.4f,\"bandwidth\":%.4f,\"spreadingFactor\":%u,"
+                 "\"codingRate\":%u,\"syncWord\":%u}",
+                 frequency, bandwidth, spreadingFactor, codingRate, syncWord);
+        loraConfigChar_->setValue(std::string(buf));
+    }
+}
+
+void BLEModule::setCurrentServerConfig(const char* address, uint16_t port) {
+    if (address) {
+        strncpy(serverConfig_.address, address, sizeof(serverConfig_.address) - 1);
+        serverConfig_.address[sizeof(serverConfig_.address) - 1] = '\0';
+    } else {
+        serverConfig_.address[0] = '\0';
+    }
+    serverConfig_.port    = port;
+    serverConfig_.pending = false;
+
+    if (serverConfigChar_) {
+        char buf[BLE_SERVER_ADDR_MAX_LEN + 48];
+        snprintf(buf, sizeof(buf), "{\"address\":\"%s\",\"port\":%u}",
+                 serverConfig_.address, port);
+        serverConfigChar_->setValue(std::string(buf));
+    }
 }

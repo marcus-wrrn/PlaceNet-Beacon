@@ -76,3 +76,13 @@ struct DisplayState {
 void mainTask(void* pvParameters);
 
 bool setupMainTask(SupervisorContext* ctx, uint32_t stackDepth);
+
+/**
+ * @brief Force the beacon back into BLE setup/provisioning mode.
+ *
+ * Sets a sentinel in RTC memory (which survives a warm reset but clears on
+ * power loss) and reboots. On the next boot the supervisor enters setup mode
+ * regardless of whether a valid config is present. Safe to call from any task
+ * context — e.g. the PMU power-button handler. Does not return.
+ */
+void requestSetupModeReboot();

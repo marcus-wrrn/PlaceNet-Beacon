@@ -42,6 +42,22 @@ public:
     bool isInitialized() const { return initialized_; }
 
     /**
+     * @brief Override the radio PHY parameters before init().
+     *
+     * Must be called before init() — the values are latched when the radio is
+     * brought up. Pass the values loaded from PlaceNetConfig::lora so the
+     * BLE-provisioned settings take effect.
+     *
+     * @param frequency       Carrier frequency in MHz
+     * @param bandwidth       Bandwidth in kHz
+     * @param spreadingFactor Spreading factor (6-12)
+     * @param codingRate      Coding rate denominator (5-8 → 4/5 - 4/8)
+     * @param syncWord        Sync word (e.g. 0x12 for a private network)
+     */
+    void setRadioParams(float frequency, float bandwidth, uint8_t spreadingFactor,
+                        uint8_t codingRate, uint8_t syncWord);
+
+    /**
      * @brief Transmit data immediately (blocking)
      * @param data Pointer to data buffer
      * @param length Length of data to transmit

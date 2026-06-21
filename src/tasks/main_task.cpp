@@ -6,6 +6,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <atomic>
+#include <esp_system.h>
+#include <esp_attr.h>
 
 #ifdef HAS_PMU
 #include "pmu_task.h"
@@ -24,10 +26,26 @@ static const char* TAG = "MAIN";
 static SupervisorContext* g_ctx = nullptr;
 static std::atomic<BeaconState> g_state{STATE_SETUP};
 
+static const uint32_t FORCE_SETUP_MAGIC = 0x5E7C0DEu; // arbitrary value
+RTC_NOINIT_ATTR static uint32_t g_forceSetupMagic;
+
+void requestSetupModeReboot() {
+    LOGW(TAG, "Setup-mode reboot requested — restarting into BLE provisioning");
+    g_forceSetupMagic = FORCE_SETUP_MAGIC;
+    vTaskDelay(pdMS_TO_TICKS(100));  // give the log line time to flush over UART
+    esp_restart();
+}
+
 // Credentials received from BLE callback (set from BLE ISR/task context)
 static volatile bool g_credsReceived = false;
 static char g_pendingSsid[MAX_SSID_LENGTH]     = {};
 static char g_pendingPassword[MAX_PASSWORD_LENGTH] = {};
+
+// Radio / server config received from BLE callbacks (BLE task context).
+static volatile bool    g_loraCfgReceived   = false;
+static BLELoRaConfig    g_pendingLora       = {};
+static volatile bool    g_serverCfgReceived = false;
+static BLEServerConfig  g_pendingServer     = {};
 
 static void onCredentialsReceived(const char* ssid, const char* pass) {
     strncpy(g_pendingSsid, ssid, MAX_SSID_LENGTH - 1);
@@ -37,10 +55,33 @@ static void onCredentialsReceived(const char* ssid, const char* pass) {
     g_credsReceived = true;
 }
 
+static void onLoRaConfigReceived(const BLELoRaConfig& cfg) {
+    g_pendingLora     = cfg;
+    g_loraCfgReceived = true;
+}
+
+static void onServerConfigReceived(const BLEServerConfig& cfg) {
+    g_pendingServer     = cfg;
+    g_serverCfgReceived = true;
+}
+
 static void enterSetup(SupervisorContext* ctx) {
     LOGI(TAG, "Entering SETUP state: starting BLE provisioning");
     ctx->ble->setCredentialsCallback(onCredentialsReceived);
+    ctx->ble->setLoRaConfigCallback(onLoRaConfigReceived);
+    ctx->ble->setServerConfigCallback(onServerConfigReceived);
     ctx->ble->init();
+
+    // Seed the readable config characteristics with the values currently in
+    // effect so the app shows the real configuration on connect.
+    ctx->ble->setCurrentLoRaConfig(ctx->config->lora.frequency,
+                                   ctx->config->lora.bandwidth,
+                                   ctx->config->lora.spreadingFactor,
+                                   ctx->config->lora.codingRate,
+                                   ctx->config->lora.syncWord);
+    ctx->ble->setCurrentServerConfig(ctx->config->httpServer.url,
+                                     ctx->config->httpServer.port);
+
     ctx->ble->startAdvertising();
     g_state = STATE_PROVISIONING;
     LOGI(TAG, "BLE advertising started, waiting for credentials");
@@ -50,6 +91,12 @@ static void enterOperational(SupervisorContext* ctx) {
     LOGI(TAG, "Entering OPERATIONAL state");
 
     if (ctx->lora) {
+        // Apply the provisioned radio PHY profile before the radio is brought up.
+        ctx->lora->setRadioParams(ctx->config->lora.frequency,
+                                  ctx->config->lora.bandwidth,
+                                  ctx->config->lora.spreadingFactor,
+                                  ctx->config->lora.codingRate,
+                                  ctx->config->lora.syncWord);
         setupLoRaTask(ctx->lora, 4096);
     }
 
@@ -194,12 +241,19 @@ void mainTask(void* pvParameters) {
 
     SupervisorContext* ctx = static_cast<SupervisorContext*>(pvParameters);
 
-    // Determine initial state from config
-    if (ctx->config && ctx->config->isSetUp()) {
-        LOGI(TAG, "WiFi configured — booting directly into operational mode");
+    // check to see if setup state has been reinforced
+    bool forceSetup = (g_forceSetupMagic == FORCE_SETUP_MAGIC);
+    g_forceSetupMagic = 0;
+
+    if (!forceSetup && ctx->config && ctx->config->isReadyForOperation()) {
+        LOGI(TAG, "Config valid — booting directly into operational mode");
         enterOperational(ctx);
     } else {
-        LOGI(TAG, "No WiFi configured — entering setup/provisioning mode");
+        if (forceSetup) {
+            LOGI(TAG, "Setup mode forced by button gesture");
+        } else {
+            LOGI(TAG, "Config invalid or incomplete — entering setup/provisioning mode");
+        }
         enterSetup(ctx);
     }
 
@@ -216,6 +270,40 @@ void mainTask(void* pvParameters) {
                     provDisplayShown = true;
                 }
 #endif
+                // Apply radio config as soon as it arrives so it persists even
+                // if the user configures it without (re)sending WiFi credentials.
+                if (g_loraCfgReceived) {
+                    ctx->config->lora.frequency       = g_pendingLora.frequency;
+                    ctx->config->lora.bandwidth       = g_pendingLora.bandwidth;
+                    ctx->config->lora.spreadingFactor = g_pendingLora.spreadingFactor;
+                    ctx->config->lora.codingRate      = g_pendingLora.codingRate;
+                    ctx->config->lora.syncWord        = g_pendingLora.syncWord;
+                    g_loraCfgReceived = false;
+                    LOGI(TAG, "Applied LoRa config from BLE");
+#ifdef HAS_SDCARD
+                    if (ctx->sd && ctx->sd->isInitialized()) {
+                        ctx->sd->saveConfig(ctx->config);
+                    }
+#endif
+                }
+
+                if (g_serverCfgReceived) {
+                    strncpy(ctx->config->httpServer.url, g_pendingServer.address,
+                            MAX_HTTP_SERVER_LENGTH - 1);
+                    ctx->config->httpServer.url[MAX_HTTP_SERVER_LENGTH - 1] = '\0';
+                    ctx->config->httpServer.port = g_pendingServer.port;
+                    ctx->config->httpServer.enabled =
+                        strlen(ctx->config->httpServer.url) > 0;
+                    g_serverCfgReceived = false;
+                    LOGI(TAG, "Applied server config from BLE: %s:%u",
+                         ctx->config->httpServer.url, ctx->config->httpServer.port);
+#ifdef HAS_SDCARD
+                    if (ctx->sd && ctx->sd->isInitialized()) {
+                        ctx->sd->saveConfig(ctx->config);
+                    }
+#endif
+                }
+
                 if (g_credsReceived) {
                     LOGI(TAG, "Credentials received: SSID='%s'", g_pendingSsid);
                     // Write credentials into config

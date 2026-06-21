@@ -8,7 +8,10 @@
 
 static const char* TAG = "NET-MANAGER";
 
-// ── Target server (change for testing) ────────────────────────────────────────
+// ── Target server fallback (used only when no server is configured) ───────────
+// The active server address/port is normally provisioned over BLE and stored in
+// PlaceNetConfig::httpServer (url + port). These defaults are used only when the
+// config has no server set.
 static const char*    HOME_SERVER_IP   = "192.168.2.39";
 static const uint16_t HOME_SERVER_PORT = 8080;
 // ──────────────────────────────────────────────────────────────────────────────
@@ -121,7 +124,19 @@ bool NetworkManager::setup() {
 
     startMDNS();
 
-    HTTPManager http(HOME_SERVER_IP, HOME_SERVER_PORT);
+    // Prefer the BLE-provisioned server (PlaceNetConfig::httpServer); fall back
+    // to the compiled-in defaults when none has been configured.
+    const char* serverIp   = HOME_SERVER_IP;
+    uint16_t    serverPort = HOME_SERVER_PORT;
+    if (config_ && strlen(config_->httpServer.url) > 0) {
+        serverIp   = config_->httpServer.url;
+        serverPort = config_->httpServer.port;
+        LOGI(TAG, "Using configured server: %s:%u", serverIp, serverPort);
+    } else {
+        LOGI(TAG, "No server configured, using default: %s:%u", serverIp, serverPort);
+    }
+
+    HTTPManager http(serverIp, serverPort);
 
     if (!http.checkHealth()) {
         LOGW(TAG, "Home server health check failed before handshake");

@@ -3,12 +3,36 @@
 #ifdef HAS_PMU
 
 #include "PMUModule.h"
+#include "main_task.h"
 #include "logger.h"
+#include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
 static const char* TAG = "PMU_TASK";
 QueueHandle_t pmuStateQueue = nullptr;
+
+static const uint8_t  PEKEY_SETUP_PRESSES   = 3; // number of times needed to press key to enter setup
+static const uint32_t PEKEY_SETUP_WINDOW_MS = 5000;
+
+// Invoked from PMUModule::processEvents() on each PEKEY short-press IRQ.
+static void onPmuShortPress() {
+    static uint8_t  pressCount = 0;
+    static uint32_t windowStart = 0;
+
+    uint32_t now = millis();
+    if (pressCount == 0 || (now - windowStart) > PEKEY_SETUP_WINDOW_MS) {
+        pressCount  = 0;
+        windowStart = now;
+    }
+    pressCount++;
+    LOGI(TAG, "Power-key short press %u/%u", pressCount, PEKEY_SETUP_PRESSES);
+
+    if (pressCount >= PEKEY_SETUP_PRESSES) {
+        pressCount = 0;
+        requestSetupModeReboot();  // sets RTC flag and reboots — does not return
+    }
+}
 
 bool setupPMUTask(PMUModule* pmu, uint32_t stackDepth) {
     if (!pmu) {
@@ -79,7 +103,7 @@ void pmuTask(void* pvParameters) {
         if (notifyValue > 0) {
             // PMU interrupt received
             LOGD(TAG, "PMU interrupt received, processing events...");
-            pmu->processEvents(nullptr);
+            pmu->processEvents(onPmuShortPress);
         }
 
         

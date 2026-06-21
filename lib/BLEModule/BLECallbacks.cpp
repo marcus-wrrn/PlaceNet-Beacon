@@ -1,6 +1,7 @@
 #include "BLECallbacks.h"
 #include "BLEModule.h"
 #include "logger.h"
+#include <ArduinoJson.h>
 
 static const char* TAG = "BLE";
 
@@ -53,6 +54,55 @@ void WiFiCharacteristicCallbacks::onWrite(NimBLECharacteristic* pCharacteristic,
             }
         } else {
             LOGW(TAG, "Password received but no SSID set yet");
+        }
+    } else if (pCharacteristic == bleModule_->loraConfigChar_) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, value);
+        if (err) {
+            LOGW(TAG, "LoRa config JSON parse error: %s", err.c_str());
+            return;
+        }
+
+        BLELoRaConfig& c = bleModule_->loraConfig_;
+        c.frequency       = doc["frequency"]       | c.frequency;
+        c.bandwidth       = doc["bandwidth"]       | c.bandwidth;
+        c.spreadingFactor = doc["spreadingFactor"] | c.spreadingFactor;
+        c.codingRate      = doc["codingRate"]      | c.codingRate;
+        c.syncWord        = doc["syncWord"]        | c.syncWord;
+        c.pending         = true;
+
+        // Reflect the accepted value back so a subsequent read returns it.
+        pCharacteristic->setValue(value);
+
+        LOGI(TAG, "LoRa config set: %.3f MHz, BW %.1f kHz, SF %u, CR 4/%u, sync 0x%02X",
+             c.frequency, c.bandwidth, c.spreadingFactor, c.codingRate, c.syncWord);
+
+        if (bleModule_->loraConfigCallback_) {
+            bleModule_->loraConfigCallback_(c);
+        }
+    } else if (pCharacteristic == bleModule_->serverConfigChar_) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, value);
+        if (err) {
+            LOGW(TAG, "Server config JSON parse error: %s", err.c_str());
+            return;
+        }
+
+        BLEServerConfig& c = bleModule_->serverConfig_;
+        const char* addr = doc["address"];
+        if (addr) {
+            strncpy(c.address, addr, sizeof(c.address) - 1);
+            c.address[sizeof(c.address) - 1] = '\0';
+        }
+        c.port    = doc["port"] | c.port;
+        c.pending = true;
+
+        pCharacteristic->setValue(value);
+
+        LOGI(TAG, "Server config set: %s:%u", c.address, c.port);
+
+        if (bleModule_->serverConfigCallback_) {
+            bleModule_->serverConfigCallback_(c);
         }
     }
 }

@@ -187,24 +187,24 @@ void MQTTManager::handleBroadcast(const char* payload) {
         return;
     }
 
-    // Build a compact binary LoRa frame:
+    // Build a compact binary LoRa frame carried as a RAW_CUSTOM MeshCore packet:
     //   [url_len: 1 byte][url: url_len bytes][kid: 4 bytes][tok: 4 bytes]
-    LoRaPacket pkt = {};
-    strncpy(pkt.url, bcast.url, sizeof(pkt.url) - 1);
-    memcpy(pkt.kid, bcast.kid, 4);
-    memcpy(pkt.tok, bcast.tok, 4);
+    LoRaTxMsg txMsg;
+    txMsg.type = LoRaTxType::MESH_PACKET;
+    meshcore::MeshPacket& pkt = txMsg.packet;
+    pkt.payloadType = meshcore::PAYLOAD_TYPE_RAW_CUSTOM;
 
-    uint8_t urlLen = static_cast<uint8_t>(
-        std::min(strlen(bcast.url), (size_t)(LORA_MAX_PACKET_SIZE - 1 - 4 - 4 - 1)));
+    uint8_t urlLen = static_cast<uint8_t>(std::min(
+        strlen(bcast.url), (size_t)(meshcore::MESH_MAX_PAYLOAD_SIZE - 1 - 4 - 4)));
     uint8_t frameLen = 1 + urlLen + 4 + 4;
 
-    pkt.data[0] = urlLen;
-    memcpy(&pkt.data[1],           bcast.url,  urlLen);
-    memcpy(&pkt.data[1 + urlLen],  bcast.kid,  4);
-    memcpy(&pkt.data[1 + urlLen + 4], bcast.tok, 4);
-    pkt.length = frameLen;
+    pkt.payload[0] = urlLen;
+    memcpy(&pkt.payload[1],            bcast.url, urlLen);
+    memcpy(&pkt.payload[1 + urlLen],   bcast.kid, 4);
+    memcpy(&pkt.payload[1 + urlLen + 4], bcast.tok, 4);
+    pkt.payloadLen = frameLen;
 
-    if (xQueueSend(loraTxQueue, &pkt, 0) != pdPASS) {
+    if (xQueueSend(loraTxQueue, &txMsg, 0) != pdPASS) {
         LOGW(TAG, "handleBroadcast: loraTxQueue full, LoRa relay dropped");
     } else {
         LOGI(TAG, "Broadcast queued for LoRa TX (%u bytes)", frameLen);

@@ -79,6 +79,23 @@ struct BeaconConfig {
     BeaconConfig() : beaconIntervalMs(30000), loraEnabled(true), gpsEnabled(true), bleEnabled(false) {}
 };
 
+// LoRa radio PHY profile — settable over BLE and persisted to SD.
+// Defaults track the MeshCore-compatible profile defined in config.h.
+struct LoRaConfig {
+    float   frequency;        // MHz
+    float   bandwidth;        // kHz
+    uint8_t spreadingFactor;  // 6-12
+    uint8_t codingRate;       // 5-8 (4/5 - 4/8)
+    uint8_t syncWord;         // e.g. 0x12 = private network
+
+    LoRaConfig()
+        : frequency(MESHCORE_RADIO_FREQ)
+        , bandwidth(MESHCORE_RADIO_BW)
+        , spreadingFactor(MESHCORE_RADIO_SF)
+        , codingRate(MESHCORE_RADIO_CR)
+        , syncWord(MESHCORE_SYNC_WORD) {}
+};
+
 class PlaceNetConfig {
 public:
     PlaceNetConfig();
@@ -87,6 +104,7 @@ public:
     MQTTConfig mqtt;
     HTTPServerConfig httpServer;
     BeaconConfig beacon;
+    LoRaConfig lora;
 
     void reset();
     void print() const;
@@ -97,8 +115,16 @@ public:
     bool validate() const;
     bool isSetUp() const;
 
+    // Strict, complete validation of every value required to boot straight
+    // into operational mode. Unlike isSetUp() (WiFi only) and validate()
+    // (warns on bad radio values), this fails hard on any invalid field so
+    // the device falls back to setup/provisioning. Use this for the boot
+    // decision.
+    bool isReadyForOperation() const;
+
 private:
     bool isValidSSID(const char* ssid) const;
     bool isValidPassword(const char* password) const;
     bool isValidMQTTBroker(const char* broker) const;
+    bool isValidLoRaConfig() const;
 };

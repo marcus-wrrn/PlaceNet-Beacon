@@ -36,6 +36,21 @@ LoRaModule::~LoRaModule() {
     }
 }
 
+void LoRaModule::setRadioParams(float frequency, float bandwidth, uint8_t spreadingFactor,
+                                uint8_t codingRate, uint8_t syncWord) {
+    if (initialized_) {
+        LOGW(TAG, "setRadioParams ignored — radio already initialized");
+        return;
+    }
+    frequency_       = frequency;
+    bandwidth_       = bandwidth;
+    spreadingFactor_ = spreadingFactor;
+    codingRate_      = codingRate;
+    syncWord_        = syncWord;
+    LOGI(TAG, "Radio params overridden: %.3f MHz, BW %.1f kHz, SF %u, CR 4/%u, sync 0x%02X",
+         frequency_, bandwidth_, spreadingFactor_, codingRate_, syncWord_);
+}
+
 bool LoRaModule::init() {
     if (initialized_) {
         LOGW(TAG, "LoRa already initialized");
