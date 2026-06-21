@@ -49,6 +49,13 @@
 // Preamble symbols as a function of spreading factor (MeshCore rule).
 #define MESHCORE_PREAMBLE_LEN(sf)    ((sf) <= 8 ? 32 : 16)
 
+// Base64-encoded PSK for MeshCore's well-known "public" group channel. A
+// GRP_TXT sent on this channel is decryptable by any stock MeshCore chat node
+// in range. Override per build to target a private channel instead.
+#ifndef MESHCORE_PUBLIC_CHANNEL_PSK
+#define MESHCORE_PUBLIC_CHANNEL_PSK  "izOH6cXN6mrJ5e26oRXNcg=="
+#endif
+
 //=====================================================
 // T-Beam S3 Supreme Configuration
 //=====================================================

@@ -46,6 +46,10 @@ bool MeshIdentity::verify(const uint8_t sig[ADV_SIGNATURE_SIZE], const uint8_t p
     return ed25519_verify(sig, msg, len, pubKey) != 0;
 }
 
+void MeshIdentity::calcSharedSecret(uint8_t out[32], const uint8_t peerPubKey[ADV_PUB_KEY_SIZE]) const {
+    ed25519_key_exchange(out, peerPubKey, prvKey);
+}
+
 bool MeshIdentity::signAdvert(Advert& adv, uint32_t timestamp) const {
     memcpy(adv.pubKey, pubKey, ADV_PUB_KEY_SIZE);
     adv.timestamp = timestamp;

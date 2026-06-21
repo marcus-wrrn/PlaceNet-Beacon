@@ -27,6 +27,11 @@ public:
     void fromPrivateKey(const uint8_t prv[64]);
     void sign(uint8_t sigOut[ADV_SIGNATURE_SIZE], const uint8_t* msg, size_t len) const;
 
+    // Compute the 32-byte X25519 ECDH shared secret between this identity's
+    // private key and a peer's public key. Mirrors MeshCore
+    // LocalIdentity::calcSharedSecret (same orlp/ed25519 ed25519_key_exchange),
+    void calcSharedSecret(uint8_t out[32], const uint8_t peerPubKey[ADV_PUB_KEY_SIZE]) const;
+
     // Raw verification against an arbitrary public key. Returns true if valid.
     static bool verify(const uint8_t sig[ADV_SIGNATURE_SIZE], const uint8_t pubKey[ADV_PUB_KEY_SIZE],
                        const uint8_t* msg, size_t len);

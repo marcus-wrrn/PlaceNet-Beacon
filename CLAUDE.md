@@ -41,14 +41,19 @@ lib/
 │   ├── README.md
 │   ├── SDCardModule.cpp
 │   └── SDCardModule.h
+├── MeshContacts/           # RAM store of known peers + cached ECDH secrets
+│   ├── ContactStore.cpp      # PSRAM-backed peer table for direct-message decode
+│   └── ContactStore.h
 ├── MeshIdentity/           # Ed25519 identity + signed ADVERT helpers (crypto)
-│   ├── MeshIdentity.cpp
+│   ├── MeshIdentity.cpp       # incl. calcSharedSecret (X25519 ECDH)
 │   └── MeshIdentity.h
-├── MeshProtocol/           # MeshCore wire framing + ADVERT/GRP_TXT codecs
+├── MeshProtocol/           # MeshCore wire framing + ADVERT/GRP_TXT/TXT_MSG codecs
 │   ├── MeshAdvert.cpp
 │   ├── MeshAdvert.h
 │   ├── MeshCrypto.cpp        # AES-128-ECB + 2-byte HMAC (encryptThenMAC/MACThenDecrypt)
 │   ├── MeshCrypto.h
+│   ├── MeshDirectMessage.cpp # TXT_MSG (0x02) direct encrypted text + ACK codec
+│   ├── MeshDirectMessage.h
 │   ├── MeshGroupChannel.cpp  # GRP_TXT (0x05) channel message encode/decode
 │   ├── MeshGroupChannel.h
 │   ├── MeshPacket.cpp
@@ -68,6 +73,8 @@ src/
 │   ├── gps_manager.h
 │   ├── http_manager.cpp
 │   ├── http_manager.h
+│   ├── mesh_messenger.cpp     # MeshCore messaging coordinator (identity + contacts + ADVERT/TXT_MSG framing)
+│   ├── mesh_messenger.h
 │   ├── mqtt_manager.cpp
 │   ├── mqtt_manager.h
 │   ├── network_manager.cpp
@@ -88,6 +95,8 @@ test/
 ├── embedded/
 │   ├── test_ble_provisioning/
 │   │   └── test_ble_provisioning.cpp
+│   ├── test_mesh_direct/
+│   │   └── test_mesh_direct.cpp
 │   ├── test_mesh_group/
 │   │   └── test_mesh_group.cpp
 │   ├── test_mesh_protocol/

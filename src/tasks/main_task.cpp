@@ -1,11 +1,14 @@
 #include "main_task.h"
 #include "lora_task.h"
 #include "managers/network_manager.h"
+#include "managers/mesh_messenger.h"
 #include "LoRaModule.h"
+#include "config.h"
 #include "logger.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <atomic>
+#include <cstring>
 #include <esp_system.h>
 #include <esp_attr.h>
 
@@ -25,6 +28,7 @@ static const char* TAG = "MAIN";
 
 static SupervisorContext* g_ctx = nullptr;
 static std::atomic<BeaconState> g_state{STATE_SETUP};
+static MeshMessenger g_mesh;
 
 static const uint32_t FORCE_SETUP_MAGIC = 0x5E7C0DEu; // arbitrary value
 RTC_NOINIT_ATTR static uint32_t g_forceSetupMagic;
@@ -98,6 +102,13 @@ static void enterOperational(SupervisorContext* ctx) {
                                   ctx->config->lora.codingRate,
                                   ctx->config->lora.syncWord);
         setupLoRaTask(ctx->lora, 4096);
+
+        // Bring up MeshCore messaging now that loraTxQueue exists, then announce
+        // ourselves to any MeshCore nodes in range.
+        if (!g_mesh.begin(loraTxQueue)) {
+            LOGE(TAG, "ContactStore: allocation failed — direct messaging disabled");
+        }
+        g_mesh.sendStartupAdvert();
     }
 
 #ifdef HAS_GPS
@@ -162,15 +173,15 @@ static void runOperationalLoop(SupervisorContext* ctx) {
                 if (rxMsg.packet.payloadType == meshcore::PAYLOAD_TYPE_ADVERT) {
                     meshcore::Advert advert;
                     if (ctx->lora->parseAdvert(rxMsg.packet, advert)) {
-                        strncpy(currentState.lastAdvertName, advert.name,
-                                sizeof(currentState.lastAdvertName) - 1);
-                        currentState.lastAdvertName[sizeof(currentState.lastAdvertName) - 1] = '\0';
                         LOGI(TAG, "#%d RX ADVERT: name='%s' type=%d RSSI=%d dBm SNR=%.2f dB",
                              pktCount, advert.name, advert.type, rxMsg.rssi, rxMsg.snr);
+                        if (g_mesh.ready()) g_mesh.handleAdvert(advert, currentState, pktCount);
                     } else {
                         currentState.lastAdvertName[0] = '\0';
                         LOGW(TAG, "#%d RX ADVERT: parse failed", pktCount);
                     }
+                } else if (rxMsg.packet.payloadType == meshcore::PAYLOAD_TYPE_TXT_MSG) {
+                    if (g_mesh.ready()) g_mesh.handleDirectMessage(rxMsg.packet, currentState, pktCount);
                 } else {
                     currentState.lastAdvertName[0] = '\0';
                     LOGI(TAG, "#%d RX packet: payloadType=%d RSSI=%d dBm SNR=%.2f dB payloadLen=%d",
