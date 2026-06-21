@@ -41,26 +41,24 @@ struct SupervisorContext {
 };
 
 struct DisplayState {
-    uint16_t batteryVoltage;
-    int      sentCount;
-    int      receivedCount;
-    int16_t  lastRssi;
-    float    lastSnr;
-    char     lastUrl[128];
-    uint8_t  lastKid[4];
-    uint8_t  lastTok[4];
+    uint16_t    batteryVoltage;
+    int         sentCount;
+    int         receivedCount;
+    int16_t     lastRssi;
+    float       lastSnr;
+    uint8_t     lastPayloadType;
+    char        lastAdvertName[meshcore::ADV_MAX_APP_DATA + 1];
     BeaconState beaconState;
 
     bool operator!=(const DisplayState& other) const {
-        return batteryVoltage  != other.batteryVoltage  ||
-               sentCount       != other.sentCount       ||
-               receivedCount   != other.receivedCount   ||
-               lastRssi        != other.lastRssi        ||
-               lastSnr         != other.lastSnr         ||
-               beaconState     != other.beaconState     ||
-               memcmp(lastKid, other.lastKid, 4) != 0  ||
-               memcmp(lastTok, other.lastTok, 4) != 0  ||
-               strcmp(lastUrl, other.lastUrl) != 0;
+        return batteryVoltage   != other.batteryVoltage   ||
+               sentCount        != other.sentCount        ||
+               receivedCount    != other.receivedCount    ||
+               lastRssi         != other.lastRssi         ||
+               lastSnr          != other.lastSnr          ||
+               lastPayloadType  != other.lastPayloadType  ||
+               beaconState      != other.beaconState      ||
+               strcmp(lastAdvertName, other.lastAdvertName) != 0;
     }
 };
 

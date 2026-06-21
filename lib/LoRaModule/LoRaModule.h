@@ -7,6 +7,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <cstdint>
+#include "MeshPacket.h"
+#include "MeshAdvert.h"
 
 #define LORA_MAX_PACKET_SIZE 255
 
@@ -61,6 +63,36 @@ public:
      * @return true if a packet was ready and read successfully
      */
     bool readPacket(LoRaPacket* packet);
+
+    /**
+     * @brief Serialize and transmit a MeshPacket.
+     * @param packet The MeshPacket to send.
+     * @return true if the packet was serialized and transmitted successfully.
+     */
+    bool transmitMeshCorePacket(const meshcore::MeshPacket& packet);
+
+    /**
+     * @brief Wrap an Advert in a PAYLOAD_TYPE_ADVERT MeshPacket and transmit it.
+     * @param advert The Advert to send (appData must already be encoded / signature set).
+     * @return true if the advert was packed and transmitted successfully.
+     */
+    bool transmitMeshCoreAdvert(const meshcore::Advert& advert);
+
+    /**
+     * @brief Parse a raw LoRaPacket into a MeshPacket.
+     * @param raw  Source LoRaPacket (data[] + length filled by readPacket()).
+     * @param out  MeshPacket to populate.
+     * @return true if parsing succeeded.
+     */
+    bool parsePacket(const LoRaPacket& raw, meshcore::MeshPacket& out);
+
+    /**
+     * @brief Parse the payload of a PAYLOAD_TYPE_ADVERT MeshPacket into an Advert.
+     * @param packet Source MeshPacket (payloadType must be PAYLOAD_TYPE_ADVERT).
+     * @param out    Advert to populate.
+     * @return true if the payload was a valid advert and parsing succeeded.
+     */
+    bool parseAdvert(const meshcore::MeshPacket& packet, meshcore::Advert& out);
 
     /** @brief Returns true if the DIO1 ISR has flagged a received packet. */
     bool hasPacket() const { return rxFlag_; }

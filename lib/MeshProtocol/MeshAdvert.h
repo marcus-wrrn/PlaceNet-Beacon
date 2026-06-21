@@ -51,13 +51,11 @@ public:
     double lat() const { return static_cast<double>(latE6) / 1e6; }
     double lon() const { return static_cast<double>(lonE6) / 1e6; }
 
-    // ── Phase 2: decode (no crypto) ──────────────────────────────────────────
     // Parse a full ADVERT payload into this object. Returns false if the buffer
     // is too short for the fixed header or the app_data exceeds limits. Does NOT
     // verify the signature (see MeshIdentity::verifyAdvert).
     bool parse(const uint8_t* payload, size_t len);
 
-    // ── Building (used by Phase 3 signing) ───────────────────────────────────
     // Setters mutate the decoded fields; call encodeAppData() afterwards (or let
     // MeshIdentity::signAdvert do it) to refresh appData[].
     void setType(uint8_t t)            { type = t & ADV_TYPE_MASK; }

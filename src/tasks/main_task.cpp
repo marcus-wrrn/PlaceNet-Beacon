@@ -68,7 +68,7 @@ static void enterOperational(SupervisorContext* ctx) {
 }
 
 static void runOperationalLoop(SupervisorContext* ctx) {
-    LoRaPacket pkt;
+    LoRaRxMsg    rxMsg;
     DisplayState currentState  = {};
     DisplayState lastDisplayed = {};
     currentState.beaconState   = STATE_OPERATIONAL;
@@ -100,29 +100,35 @@ static void runOperationalLoop(SupervisorContext* ctx) {
         gpsManager.updateGPS();  // keep module ticking; GPS no longer shown on display
 #endif
 
-        while (loraRxQueue && xQueueReceive(loraRxQueue, &pkt, 0) == pdPASS) {
+        while (loraRxQueue && xQueueReceive(loraRxQueue, &rxMsg, 0) == pdPASS) {
             pktCount++;
-            bool isSentPacket = (pkt.rssi == 0 && pkt.snr == 0.0f);
 
-            if (isSentPacket) {
+            if (rxMsg.isEcho) {
                 currentState.sentCount++;
-                LOGI(TAG, "Packet #%d sent (%u bytes) url=%s kid=%02x%02x%02x%02x tok=%02x%02x%02x%02x",
-                     pktCount, pkt.length,
-                     pkt.url[0] ? pkt.url : "(raw)",
-                     pkt.kid[0], pkt.kid[1], pkt.kid[2], pkt.kid[3],
-                     pkt.tok[0], pkt.tok[1], pkt.tok[2], pkt.tok[3]);
+                LOGI(TAG, "Packet #%d sent (payloadType=%d)", pktCount, rxMsg.packet.payloadType);
             } else {
                 currentState.receivedCount++;
-                currentState.lastRssi = pkt.rssi;
-                currentState.lastSnr  = pkt.snr;
-                strncpy(currentState.lastUrl, pkt.url, sizeof(currentState.lastUrl) - 1);
-                memcpy(currentState.lastKid, pkt.kid, 4);
-                memcpy(currentState.lastTok, pkt.tok, 4);
-                LOGI(TAG, "#%d Received packet: RSSI=%d dBm, SNR=%.2f dB, len=%d url=%s kid=%02x%02x%02x%02x tok=%02x%02x%02x%02x",
-                     pktCount, pkt.rssi, pkt.snr, pkt.length,
-                     pkt.url[0] ? pkt.url : "(raw)",
-                     pkt.kid[0], pkt.kid[1], pkt.kid[2], pkt.kid[3],
-                     pkt.tok[0], pkt.tok[1], pkt.tok[2], pkt.tok[3]);
+                currentState.lastRssi        = rxMsg.rssi;
+                currentState.lastSnr         = rxMsg.snr;
+                currentState.lastPayloadType = rxMsg.packet.payloadType;
+
+                if (rxMsg.packet.payloadType == meshcore::PAYLOAD_TYPE_ADVERT) {
+                    meshcore::Advert advert;
+                    if (ctx->lora->parseAdvert(rxMsg.packet, advert)) {
+                        strncpy(currentState.lastAdvertName, advert.name,
+                                sizeof(currentState.lastAdvertName) - 1);
+                        currentState.lastAdvertName[sizeof(currentState.lastAdvertName) - 1] = '\0';
+                        LOGI(TAG, "#%d RX ADVERT: name='%s' type=%d RSSI=%d dBm SNR=%.2f dB",
+                             pktCount, advert.name, advert.type, rxMsg.rssi, rxMsg.snr);
+                    } else {
+                        currentState.lastAdvertName[0] = '\0';
+                        LOGW(TAG, "#%d RX ADVERT: parse failed", pktCount);
+                    }
+                } else {
+                    currentState.lastAdvertName[0] = '\0';
+                    LOGI(TAG, "#%d RX packet: payloadType=%d RSSI=%d dBm SNR=%.2f dB payloadLen=%d",
+                         pktCount, rxMsg.packet.payloadType, rxMsg.rssi, rxMsg.snr, rxMsg.packet.payloadLen);
+                }
             }
         }
 
@@ -144,15 +150,11 @@ static void runOperationalLoop(SupervisorContext* ctx) {
                 display.drawLine("Bat: %u mV", currentState.batteryVoltage);
 #endif
                 display.drawLine("Sent: #%d", currentState.sentCount);
-                display.drawLine("Received: #%d", currentState.receivedCount);
+                display.drawLine("Recv: #%d", currentState.receivedCount);
                 display.drawLine("RSSI: %d  SNR: %.1f", currentState.lastRssi, currentState.lastSnr);
-                display.drawLine("url: %s", currentState.lastUrl[0] ? currentState.lastUrl : "-");
-                display.drawLine("kid: %02x%02x%02x%02x",
-                    currentState.lastKid[0], currentState.lastKid[1],
-                    currentState.lastKid[2], currentState.lastKid[3]);
-                display.drawLine("tok: %02x%02x%02x%02x",
-                    currentState.lastTok[0], currentState.lastTok[1],
-                    currentState.lastTok[2], currentState.lastTok[3]);
+                display.drawLine("Type: %d", currentState.lastPayloadType);
+                display.drawLine("Name: %s",
+                    currentState.lastAdvertName[0] ? currentState.lastAdvertName : "-");
 
                 display.sendBuffer();
 #endif

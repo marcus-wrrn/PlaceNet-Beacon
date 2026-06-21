@@ -1,30 +1,49 @@
 #pragma once
 #include "config.h"
-#include "GPSModule.h"
+#include "MeshPacket.h"
+#include "MeshAdvert.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
 class LoRaModule;
 
-#define PACKET_LEN 256
+// Discriminator for outbound queue items.
+enum class LoRaTxType : uint8_t { MESH_PACKET, ADVERT };
+
+// Item placed on loraTxQueue by producers (main_task, mqtt_manager, etc.).
+// Set `type` then fill the corresponding field; the other field is ignored.
+struct LoRaTxMsg {
+    LoRaTxType           type;
+    meshcore::MeshPacket packet;  // valid when type == MESH_PACKET
+    meshcore::Advert     advert;  // valid when type == ADVERT
+};
+
+// Item placed on loraRxQueue by lora_task for every received (or echoed) frame.
+// The packet is always decoded; inspect packet.payloadType to classify it.
+// isEcho==true means we sent this frame (rssi==0, snr==0).
+struct LoRaRxMsg {
+    int16_t              rssi;
+    float                snr;
+    bool                 isEcho;
+    meshcore::MeshPacket packet;
+};
 
 struct LoRaTaskParams {
     LoRaModule* lora;
 };
 
-extern QueueHandle_t loraRxQueue;   // lora_task  → main_task  (received packets + TX echoes)
-extern QueueHandle_t loraTxQueue;   // mqtt_manager → lora_task (packets to transmit)
+extern QueueHandle_t loraRxQueue;  // lora_task  → main_task  (LoRaRxMsg)
+extern QueueHandle_t loraTxQueue;  // producers  → lora_task  (LoRaTxMsg)
 
 /**
- * @brief LoRa task function - handles TX/RX radio operations
+ * @brief LoRa task — interrupt-driven RX, queue-driven TX.
  *
- * This task:
- * - Always stays in continuous RX mode (listening)
- * - When a packet arrives on loraTxQueue, switches to TX, transmits,
- *   then immediately returns to RX mode
- * - Pushes received packets (and TX echoes) onto loraRxQueue for main_task
+ * Always stays in continuous RX mode.  When a LoRaTxMsg arrives on
+ * loraTxQueue it switches to TX, transmits, echoes a LoRaRxMsg with
+ * isEcho=true onto loraRxQueue, then returns to RX.  Received frames are
+ * parsed into LoRaRxMsg and forwarded on loraRxQueue.
  *
- * @param pvParameters Pointer to LoRaTaskParams struct
+ * @param pvParameters Pointer to LoRaTaskParams.
  */
 void loraTask(void* pvParameters);
 bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth);

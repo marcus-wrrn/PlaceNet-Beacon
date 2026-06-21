@@ -210,6 +210,50 @@ void LoRaModule::recordTransmission(uint32_t timeOnAir) {
     }
 }
 
+bool LoRaModule::transmitMeshCorePacket(const meshcore::MeshPacket& packet) {
+    uint8_t buf[LORA_MAX_PACKET_SIZE];
+    size_t len = packet.serialize(buf, sizeof(buf));
+    if (len == 0) {
+        LOGE(TAG, "transmitPacket: serialization failed");
+        return false;
+    }
+    return transmit(buf, static_cast<uint8_t>(len));
+}
+
+bool LoRaModule::transmitMeshCoreAdvert(const meshcore::Advert& advert) {
+    meshcore::MeshPacket pkt;
+    pkt.payloadType = meshcore::PAYLOAD_TYPE_ADVERT;
+
+    size_t advLen = advert.serialize(pkt.payload, sizeof(pkt.payload));
+    if (advLen == 0) {
+        LOGE(TAG, "transmitMeshCoreAdvert: advert serialization failed");
+        return false;
+    }
+    pkt.payloadLen = static_cast<uint8_t>(advLen);
+
+    return transmitMeshCorePacket(pkt);
+}
+
+bool LoRaModule::parsePacket(const LoRaPacket& raw, meshcore::MeshPacket& out) {
+    if (!out.parse(raw.data, raw.length)) {
+        LOGW(TAG, "parsePacket: failed to parse %d bytes", raw.length);
+        return false;
+    }
+    return true;
+}
+
+bool LoRaModule::parseAdvert(const meshcore::MeshPacket& packet, meshcore::Advert& out) {
+    if (packet.payloadType != meshcore::PAYLOAD_TYPE_ADVERT) {
+        LOGW(TAG, "parseAdvert: unexpected payload type %d", packet.payloadType);
+        return false;
+    }
+    if (!out.parse(packet.payload, packet.payloadLen)) {
+        LOGW(TAG, "parseAdvert: advert payload parse failed");
+        return false;
+    }
+    return true;
+}
+
 float LoRaModule::getDutyCycle(uint32_t windowMs) {
     if (txRecordCount_ == 0) {
         return 0.0f;

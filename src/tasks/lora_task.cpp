@@ -18,13 +18,13 @@ bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth) {
         return false;
     }
 
-    loraRxQueue = xQueueCreate(LORA_RX_QUEUE_LEN, sizeof(LoRaPacket));
+    loraRxQueue = xQueueCreate(LORA_RX_QUEUE_LEN, sizeof(LoRaRxMsg));
     if (!loraRxQueue) {
         LOGE(TAG, "Failed to create loraRxQueue");
         return false;
     }
 
-    loraTxQueue = xQueueCreate(LORA_TX_QUEUE_LEN, sizeof(LoRaPacket));
+    loraTxQueue = xQueueCreate(LORA_TX_QUEUE_LEN, sizeof(LoRaTxMsg));
     if (!loraTxQueue) {
         LOGE(TAG, "Failed to create loraTxQueue");
         vQueueDelete(loraRxQueue);
@@ -45,7 +45,7 @@ bool setupLoRaTask(LoRaModule* lora, uint32_t stackDepth) {
     );
 
     if (result == pdPASS) {
-        LOGI(TAG, "LoRa task created on core 1 (priority 8)");
+        LOGI(TAG, "LoRa task created on core 1 (priority 9)");
         return true;
     } else {
         LOGE(TAG, "Failed to create LoRa task");
@@ -83,31 +83,50 @@ void loraTask(void* pvParameters) {
 
     LOGI(TAG, "LoRa task running - interrupt-driven RX, TX driven by loraTxQueue");
 
-    LoRaPacket pkt;
-    uint32_t rxCount = 0;
-    uint32_t txCount = 0;
-
+    LoRaTxMsg txMsg;
+    LoRaPacket raw;
+    LoRaRxMsg  rxMsg;
+    LoRaRxMsg  echo;
+    uint32_t   rxCount = 0;
+    uint32_t   txCount = 0;
 
     while (true) {
-        // ── TX: drain one outgoing packet if queued ───────────────────────
-        if (xQueueReceive(loraTxQueue, &pkt, 0) == pdPASS) {
+        // ── TX: drain one outgoing message if queued ──────────────────────
+        if (xQueueReceive(loraTxQueue, &txMsg, 0) == pdPASS) {
             txCount++;
-            LOGI(TAG, "TX #%lu: transmitting %d bytes", txCount, pkt.length);
+            bool ok = false;
 
-            bool ok = lora->transmit(pkt.data, pkt.length);
+            if (txMsg.type == LoRaTxType::MESH_PACKET) {
+                LOGI(TAG, "TX #%lu: MeshPacket payloadType=%d", txCount, txMsg.packet.payloadType);
+                ok = lora->transmitMeshCorePacket(txMsg.packet);
+            } else {
+                LOGI(TAG, "TX #%lu: Advert name='%s'", txCount, txMsg.advert.name);
+                ok = lora->transmitMeshCoreAdvert(txMsg.advert);
+            }
+
             if (ok) {
-                LOGI(TAG, "TX #%lu: transmitted successfully", txCount);
+                LOGI(TAG, "TX #%lu: successful", txCount);
 
-                // Echo to loraRxQueue so main_task can update the display.
-                // Convention: rssi=0, snr=0 flags a locally-sent packet.
-                LoRaPacket echo = pkt;
-                echo.rssi = 0;
-                echo.snr  = 0.0f;
+                // Echo onto loraRxQueue so main_task can update sent counters.
+                // isEcho=true / rssi=0 / snr=0 distinguishes this from a real RX.
+                memset(&echo, 0, sizeof(echo));
+                echo.isEcho = true;
+
+                if (txMsg.type == LoRaTxType::MESH_PACKET) {
+                    echo.packet = txMsg.packet;
+                } else {
+                    // Reconstruct the ADVERT MeshPacket that was put on air.
+                    echo.packet.payloadType = meshcore::PAYLOAD_TYPE_ADVERT;
+                    size_t advLen = txMsg.advert.serialize(
+                        echo.packet.payload, sizeof(echo.packet.payload));
+                    echo.packet.payloadLen = static_cast<uint8_t>(advLen);
+                }
+
                 if (xQueueSend(loraRxQueue, &echo, 0) != pdPASS) {
-                    LOGW(TAG, "TX #%lu: loraRxQueue full, TX echo dropped", txCount);
+                    LOGW(TAG, "TX #%lu: loraRxQueue full, echo dropped", txCount);
                 }
             } else {
-                LOGW(TAG, "TX #%lu: transmission failed", txCount);
+                LOGW(TAG, "TX #%lu: failed", txCount);
             }
 
             if (!lora->startListening()) {
@@ -116,17 +135,22 @@ void loraTask(void* pvParameters) {
         }
 
         // ── RX: non-blocking read driven by DIO1 interrupt flag ───────────
-        if (lora->readPacket(&pkt)) {
-            rxCount++;
-            LOGI(TAG, "=== RX Packet #%lu ===", rxCount);
-            LOGI(TAG, "Length: %d bytes", pkt.length);
-            LOGI(TAG, "RSSI:   %d dBm",   pkt.rssi);
-            LOGI(TAG, "SNR:    %.2f dB",  pkt.snr);
-            LOGI(TAG, "Data:   %.*s",     pkt.length, (const char*)pkt.data);
-            LOGI(TAG, "======================");
+        if (lora->readPacket(&raw)) {
+            memset(&rxMsg, 0, sizeof(rxMsg));
+            rxMsg.rssi   = raw.rssi;
+            rxMsg.snr    = raw.snr;
+            rxMsg.isEcho = false;
 
-            if (xQueueSend(loraRxQueue, &pkt, portMAX_DELAY) != pdPASS) {
-                LOGE(TAG, "RX #%lu: failed to queue packet to loraRxQueue", rxCount);
+            if (lora->parsePacket(raw, rxMsg.packet)) {
+                rxCount++;
+                LOGI(TAG, "RX #%lu: %d bytes payloadType=%d RSSI=%d dBm SNR=%.2f dB",
+                     rxCount, raw.length, rxMsg.packet.payloadType, rxMsg.rssi, rxMsg.snr);
+
+                if (xQueueSend(loraRxQueue, &rxMsg, portMAX_DELAY) != pdPASS) {
+                    LOGE(TAG, "RX #%lu: failed to enqueue", rxCount);
+                }
+            } else {
+                LOGW(TAG, "RX: %d bytes received but MeshPacket parse failed — discarding", raw.length);
             }
         }
 
